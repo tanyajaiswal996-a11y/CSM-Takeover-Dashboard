@@ -1,0 +1,1435 @@
+<title>CSM Takeover Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: fixed left rail (nav + role) | work area with case list or case file; collapses to a top bar on phones */
+:root{
+  --bg:#F3F5F3; --surface:#FFFFFF; --sunk:#EAEEEB; --ink:#16201C; --muted:#5C6964; --line:#D9DFDB;
+  --accent:#1E5B4A; --accent-ink:#FFFFFF; --accent-soft:#E1EDE8;
+  --ok:#2C7A4B; --ok-soft:#E2F1E7; --warn:#A86A12; --warn-soft:#FBF0DC; --crit:#B3372B; --crit-soft:#FBE6E3; --info:#2D5B99; --info-soft:#E3ECF8;
+  --f-body:"Schibsted Grotesk", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r:8px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1412; --surface:#161C19; --sunk:#1C2420; --ink:#E4EBE7; --muted:#93A29B; --line:#29332E;
+  --accent:#6DC2A5; --accent-ink:#0F1412; --accent-soft:#1B2E27;
+  --ok:#5DBE89; --ok-soft:#18291F; --warn:#E3A94B; --warn-soft:#2E2414; --crit:#EE7B6D; --crit-soft:#331B18; --info:#86ADE8; --info-soft:#18233A;
+  color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1412; --surface:#161C19; --sunk:#1C2420; --ink:#E4EBE7; --muted:#93A29B; --line:#29332E;
+  --accent:#6DC2A5; --accent-ink:#0F1412; --accent-soft:#1B2E27;
+  --ok:#5DBE89; --ok-soft:#18291F; --warn:#E3A94B; --warn-soft:#2E2414; --crit:#EE7B6D; --crit-soft:#331B18; --info:#86ADE8; --info-soft:#18233A;
+  color-scheme:dark}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600}
+h1{font-size:22px;letter-spacing:-.01em}
+h2{font-size:16px}
+h3{font-size:14px}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+
+.app{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100%}
+.rail{background:var(--surface);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:22px;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:10px;align-items:center;padding:0 6px}
+.brand-mark{width:30px;height:30px;border-radius:7px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-weight:700;font-size:13px;letter-spacing:.02em}
+.brand b{display:block;font-size:14px}
+.brand span{font-size:11.5px;color:var(--muted)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:6px;color:var(--muted);font-weight:500}
+.nav button:hover{background:var(--sunk);color:var(--ink)}
+.nav button.on{background:var(--accent-soft);color:var(--accent)}
+.nav button:focus-visible{outline:2px solid var(--accent)}
+.count{font-size:11px;font-family:var(--f-mono);background:var(--sunk);padding:1px 6px;border-radius:10px;color:var(--muted)}
+.rolebox{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+.rolebox select{width:100%}
+.rolebox p{margin:0;font-size:11.5px;color:var(--muted)}
+.linkbtn{all:unset;cursor:pointer;color:var(--accent);font-size:12px;font-weight:500}
+.linkbtn:hover{text-decoration:underline}
+
+main{padding-block:24px 60px;padding-inline:28px;min-width:0;display:flex;flex-direction:column;gap:20px}
+.topline{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.topline .sub{margin:4px 0 0;color:var(--muted)}
+
+.btn{cursor:pointer;border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:6px;font-weight:500;font-size:13px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--crit)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+input[type=text],input[type=number],input[type=date],input[type=url],input[type=search],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:7px 9px;min-width:0}
+textarea{resize:vertical;width:100%}
+
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filters input[type=search]{flex:1 1 220px}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.panel-h{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+.panel-b{padding:16px}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{text-align:left;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface)}
+th button{all:unset;cursor:pointer}
+th button:hover{color:var(--ink)}
+td{padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr.click{cursor:pointer}
+tbody tr.click:hover td{background:var(--sunk)}
+tr.batch td{background:var(--accent-soft);padding-block:8px;font-size:12.5px;border-bottom-color:transparent}
+tr.member td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
+.empty{padding:28px 16px;text-align:center;color:var(--muted)}
+
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:20px;white-space:nowrap;background:var(--accent-soft);color:var(--accent)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.info{background:var(--info-soft);color:var(--info)}
+.pill.mute{background:var(--sunk);color:var(--muted)}
+.pill.batchp{background:var(--surface);color:var(--accent);border:1px solid var(--accent)}
+.miss{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--warn);background:var(--warn-soft);border:1px dashed var(--warn);padding:1px 6px;border-radius:4px;white-space:nowrap}
+.restricted{font-size:11.5px;color:var(--muted);background:repeating-linear-gradient(-45deg,var(--sunk) 0 4px,transparent 4px 8px);padding:2px 6px;border-radius:4px;white-space:nowrap}
+.flags{display:flex;flex-wrap:wrap;gap:4px}
+.mini{display:flex;gap:2px;margin-top:5px}
+.mini i{display:block;width:9px;height:4px;border-radius:2px;background:var(--line)}
+.mini i.d{background:var(--accent)}
+.mono,.nowrap{white-space:nowrap}
+.tip{border-bottom:1px dotted currentColor;cursor:help}
+.demo{display:inline-block;font-size:11px;font-weight:600;color:var(--warn);background:var(--warn-soft);padding:2px 8px;border-radius:20px;margin:0 6px}
+.guide{background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.guide-h{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:space-between;align-items:baseline;padding:14px 16px 0}
+.guide-h p{margin:4px 0 0;color:var(--muted);max-width:70ch}
+.phases{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:14px 16px}
+.phase{display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:6px;background:var(--bg);min-width:0}
+.phase .n{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:12px;font-weight:700}
+.phase b{font-weight:600}
+.phase p{margin:0;font-size:12.5px;color:var(--muted)}
+.whochip{align-self:flex-start;font-size:11px;font-weight:600;padding:1px 8px;border-radius:20px;border:1px solid var(--line);color:var(--ink);background:var(--surface)}
+.terms{border-top:1px solid var(--line);padding:12px 16px 14px}
+.terms dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 24px;margin:12px 0 0}
+.terms dt{font-weight:600;font-size:13px}
+.terms dd{margin:2px 0 0;font-size:12.5px;color:var(--muted)}
+.tabhelp{margin-top:-8px}
+.next .eyebrow{display:block;margin-bottom:4px}
+@media (max-width:1100px){.phases{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:620px){.phases{grid-template-columns:1fr}}
+
+/* case file */
+.back{all:unset;cursor:pointer;color:var(--muted);font-size:13px}
+.back:hover{color:var(--ink)}
+.casehead{display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;align-items:flex-start}
+.casehead .meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:8px;color:var(--muted);font-size:13px}
+.casehead .meta b{color:var(--ink);font-weight:500}
+.batchbar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border:1px dashed var(--accent);border-radius:var(--r);background:var(--surface);font-size:13px}
+.batchbar .who{display:flex;flex-wrap:wrap;gap:6px}
+.chip{all:unset;cursor:pointer;font-size:12.5px;padding:2px 9px;border-radius:20px;background:var(--sunk);color:var(--ink)}
+.chip:hover{background:var(--accent-soft);color:var(--accent)}
+.chip.me{background:var(--accent);color:var(--accent-ink);cursor:default}
+.chip:focus-visible{outline:2px solid var(--accent)}
+.stepper{display:grid;grid-template-columns:repeat(9,minmax(96px,1fr));gap:0;overflow-x:auto;padding-bottom:4px}
+.step{position:relative;padding:14px 8px 0 0;font-size:12px}
+.step::before{content:"";position:absolute;top:4px;left:0;right:0;height:3px;background:var(--line)}
+.step.done::before{background:var(--accent)}
+.step.cur::before{background:linear-gradient(90deg,var(--accent) 50%,var(--line) 50%)}
+.step .dot{position:absolute;top:0;left:0;width:11px;height:11px;border-radius:50%;background:var(--surface);border:2px solid var(--line)}
+.step.done .dot{background:var(--accent);border-color:var(--accent)}
+.step.cur .dot{border-color:var(--accent);background:var(--accent-soft)}
+.step b{display:block;font-weight:500;line-height:1.25}
+.step.todo b{color:var(--muted)}
+.step span{color:var(--muted);font-size:11px;font-family:var(--f-mono)}
+.step em{display:block;font-style:normal;font-size:10.5px;color:var(--accent);font-weight:600;letter-spacing:.04em;text-transform:uppercase;margin-top:2px}
+
+.next{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:14px 16px;border:1px solid var(--accent);background:var(--accent-soft);border-radius:var(--r)}
+.next.hold{border-color:var(--warn);background:var(--warn-soft)}
+.next p{margin:3px 0 0;color:var(--muted)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{all:unset;cursor:pointer;padding:9px 12px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px 22px}
+.kv div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.kv dt{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+.kv dd{margin:0;overflow-wrap:anywhere}
+.stack{display:flex;flex-direction:column;gap:16px}
+.two{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px;align-items:start}
+.note{font-size:12.5px;color:var(--muted);margin:0}
+.banner{display:flex;gap:10px;align-items:flex-start;padding:10px 14px;border-radius:6px;font-size:13px;background:var(--warn-soft);color:var(--ink);border-left:3px solid var(--warn)}
+.banner.info{background:var(--info-soft);border-left-color:var(--info)}
+.banner.ok{background:var(--ok-soft);border-left-color:var(--ok)}
+.trend{font-weight:600;white-space:nowrap}
+.trend.up{color:var(--ok)} .trend.down{color:var(--crit)} .trend.stable{color:var(--info)}
+.subj{display:block;font-size:12px;color:var(--muted);max-width:280px}
+.subj a{color:var(--info)}
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.list li{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:flex-start}
+.list li:last-child{border-bottom:0}
+.list .when{font-family:var(--f-mono);font-size:11.5px;color:var(--muted);min-width:118px}
+.task{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;padding:10px 0;border-bottom:1px solid var(--line)}
+.task:last-child{border-bottom:0}
+.task input[type=checkbox]{width:16px;height:16px;margin-top:2px;accent-color:var(--accent)}
+.task.done .t{text-decoration:line-through;color:var(--muted)}
+.check{display:flex;gap:8px;align-items:center;padding:4px 0}
+.check .ic{width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:700;flex:none}
+.check .ic.y{background:var(--ok);color:var(--surface)}
+.check .ic.n{border:2px solid var(--line)}
+.decide label{display:grid;grid-template-columns:20px minmax(0,1fr);gap:8px;padding:10px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.decide label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.decide input{accent-color:var(--accent);margin-top:3px}
+.decide fieldset{border:1px solid var(--line);border-radius:var(--r);padding:12px;margin:0;display:flex;flex-direction:column;gap:8px}
+.decide legend{font-weight:600;padding:0 6px}
+.cell-none{color:var(--line)}
+.pick{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border:1px solid var(--line);border-radius:6px;cursor:pointer}
+.pick:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.pick input{accent-color:var(--accent);margin-top:3px}
+
+/* modal + toast */
+.scrim{position:fixed;inset:0;background:rgba(10,15,13,.45);display:grid;place-items:center;padding:16px;z-index:20}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:10px;width:min(660px,100%);max-height:calc(100% - 32px);display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.modal-b{padding:18px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.modal-f{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:12px;font-weight:600;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+details summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--accent)}
+details[open] summary{margin-bottom:12px}
+.mail{border:1px solid var(--line);border-radius:6px;background:var(--bg);font-size:13px}
+.mail .row{display:grid;grid-template-columns:70px minmax(0,1fr);gap:8px;padding:6px 12px;border-bottom:1px solid var(--line)}
+.mail .row span:first-child{color:var(--muted)}
+.mail .body{padding:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:6px;font-size:13px;z-index:30;max-width:calc(100% - 32px)}
+
+@media (max-width:1100px){.two{grid-template-columns:1fr}}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;gap:10px;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px}
+  .nav{flex-direction:row;flex-wrap:wrap;order:3;width:100%}
+  .rolebox{margin:0 0 0 auto;padding:6px 8px;flex-direction:row;align-items:center}
+  .rolebox p,.rolebox .eyebrow,.rolebox .linkbtn{display:none}
+  main{padding-inline:16px}
+  .grid2{grid-template-columns:1fr}
+  .next{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div id="root"></div>
+<input type="file" id="pollfile" accept=".csv,text/csv" hidden>
+
+<script>
+const H = 36e5, D = 864e5;
+const STAGES = ['Resignation Logged','Bid Open','Bid Closed','Data Compilation','Sent for Approval','CSM Assigned','Target Email Sent','Handover in Progress','Completed'];
+const SHARED_UPTO = 4; // stages 0–4 run together for every case in a batch; the decision moves all to stage 5 at once
+const ROLES = {
+  hr:{label:'HR / Process Owner', who:'Tanya J. (HR)'},
+  approver:{label:'Sakshi (Approver)', who:'Sakshi'},
+  viewer:{label:'CSM (restricted)', who:'CSM viewer'}
+};
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const pad = n => String(n).padStart(2,'0');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtD = t => { if (t == null) return '—'; const d = new Date(t); return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`; };
+const fmtDT = t => { if (t == null) return '—'; const d = new Date(t); return `${d.getDate()} ${MON[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const rel = t => { const diff = t - Date.now(), a = Math.abs(diff); const s = a < H ? Math.max(1, Math.round(a/6e4))+'m' : a < 2*D ? Math.round(a/H)+'h' : Math.round(a/D)+'d'; return diff >= 0 ? 'in '+s : s+' ago'; };
+const lakh = v => v == null ? '' : '₹' + (+v).toFixed(1) + ' L';
+const MISS = label => `<span class="miss" title="Not provided. Do not treat as zero.">⚠ Missing${label ? ' ' + esc(label) : ''}</span>`;
+const RESTRICT = '<span class="restricted" title="Visible to HR and the approver only">Restricted</span>';
+
+/* ---------- bidder pool (sample people) ---------- */
+const POOL = {
+  aditi:   {name:'Aditi Sharma',   role:'CSM', ceiling:52, csmIndex:1.12, asmIndex:null, papip:{status:'None',detail:'No PAPIP on record'}, prev:[{caseId:'TKO-2025-031', subject:'Takeover allocation: Logistics East (Sahil Arora)', trend:'up'}], trend:'up'},
+  rahul:   {name:'Rahul Verma',    role:'CSM', ceiling:45, csmIndex:0.94, asmIndex:null, papip:{status:'Closed',detail:'PAPIP Q1 FY26, closed as met'}, prev:[{caseId:'TKO-2025-024', subject:'Takeover allocation: SMB Central (Isha Kulkarni)', trend:'down'}], trend:'down'},
+  meera:   {name:'Meera Iyer',     role:'CSM', ceiling:60, csmIndex:1.21, asmIndex:null, papip:{status:'None',detail:'No PAPIP on record'}, prev:[{caseId:'TKO-2025-018', subject:'Takeover allocation: Telecom North (Gaurav Pandey)', trend:'up'},{caseId:'TKO-2026-004', subject:'Takeover allocation: EdTech (Ritu Saxena)', trend:'up'}], trend:'up'},
+  siddharth:{name:'Siddharth Jain',role:'CSM', ceiling:38, csmIndex:0.88, asmIndex:null, papip:{status:'Active',detail:'Active since Aug 2026, review on 30 Nov'}, prev:[], trend:null},
+  pooja:   {name:'Pooja Bansal',   role:'CSM', ceiling:49, csmIndex:1.03, asmIndex:null, papip:{status:'None',detail:'No PAPIP on record'}, prev:[{caseId:'TKO-2025-040', subject:'Takeover allocation: Hospitality (Varun Bhatt)', trend:'stable'}], trend:'stable'},
+  nikhil:  {name:'Nikhil Gupta',   role:'CSM', ceiling:41, csmIndex:null, asmIndex:null, papip:null, prev:null, trend:null},
+  farah:   {name:'Farah Khan',     role:'CSM', ceiling:55, csmIndex:1.08, asmIndex:null, papip:{status:'None',detail:'No PAPIP on record'}, prev:[{caseId:'TKO-2025-012', subject:'Takeover allocation: Media West (Ajay Menon)', trend:'stable'},{caseId:'TKO-2026-002', subject:'Takeover allocation: Auto OEM (Sunil Thakur)', trend:'up'}], trend:'up'},
+  deepak:  {name:'Deepak Rawat',   role:'ASM', ceiling:30, csmIndex:null, asmIndex:1.15, papip:{status:'None',detail:'No PAPIP on record'}, prev:[], trend:null},
+  kavya:   {name:'Kavya Reddy',    role:'ASM', ceiling:34, csmIndex:null, asmIndex:null, papip:{status:'None',detail:'No PAPIP on record'}, prev:null, trend:null}
+};
+let uid = Date.now() % 1e7;
+const nid = p => p + (++uid).toString(36) + Math.random().toString(36).slice(2, 6);
+const thread = () => 'OL-' + (50000 + Math.floor(Math.random() * 9999));
+function mkBid(key, bid, at, enriched = true, eligible = true){
+  const p = POOL[key];
+  return { id:nid('b'), name:p.name, role:p.role, ceiling:p.ceiling, csmIndex:p.csmIndex, asmIndex:p.asmIndex, bid, submittedAt:at, eligible,
+    papip: enriched ? p.papip : null, prev: enriched ? JSON.parse(JSON.stringify(p.prev)) : null, trend: enriched ? p.trend : null };
+}
+function defaultTasks(c, n, doneUpTo = 0, blocked = -1){
+  const inc = c.incoming || 'Incoming CSM', out = c.outgoing.name, mgr = c.manager;
+  const list = [
+    ['Account list, contacts and contract dates shared', out],
+    ['Joint introduction call with top 5 accounts', out + ' + ' + inc],
+    ['Open renewals and opportunities reassigned in CRM', mgr],
+    ['Pending escalations and open tickets briefed', out],
+    ['Incoming CSM confirms readiness', inc],
+    ['Manager sign-off on handover', mgr]
+  ];
+  return list.map(([title, owner], i) => ({ id:nid('t'), title, owner, due: (c.lwd || n) - (6 - i) * D,
+    status: i < doneUpTo ? 'done' : i === blocked ? 'blocked' : 'todo',
+    blocker: i === blocked ? 'CRM access for incoming CSM pending (IT ticket #44821)' : '' }));
+}
+function blankCase(id, f, owner, at){
+  return { id, outgoing:{name:f.name, emp:f.emp || '—', designation:f.designation || ''}, pms:f.pms, portfolio:{name:f.port, accounts:f.accts ?? 0, target:f.target ?? null}, manager:f.mgr || '—',
+    resignDate:f.resign, lwd:f.lwd, owner, createdAt:at, stage:0, stageAt:{0:at}, exception:null, holdReason:'', batchId:null,
+    bid:null, bids:[], packs:[], decision:null, incoming:null, target:null, tasks:[], comms:[], log:[], attachments:[], closedAt:null };
+}
+
+function seed(){
+  const n = Date.now(), d = x => n + x*D, h = x => n + x*H;
+  const cases = [], batches = [];
+  const mk = (id, name, emp, port, accts, target, mgr, resign, lwd, owner) => {
+    const c = blankCase(id, {pms:'PMS-RES-' + (88000 + +id.slice(-3)), name, emp, port, accts, target, mgr, resign, lwd}, owner, resign + 2*H);
+    c.log.push({at:c.createdAt, by:owner, text:'Case created from PMS resignation update ' + c.pms});
+    return c;
+  };
+  const lg = (c, at, by, text) => c.log.push({at, by, text});
+  const openBid = (group, at, by, batchId) => {
+    const url = 'https://forms.office.com/r/' + (batchId || group[0].id).toLowerCase(), th = thread();
+    const subj = group.length > 1 ? `Takeover bidding open: ${group.length} portfolios (${group.map(c => c.outgoing.name).join(', ')})` : `Takeover bidding open: ${group[0].portfolio.name} (${group[0].outgoing.name})`;
+    group.forEach(c => {
+      c.bid = { pollUrl:url, sentAt:at, openAt:at, closeAt:at + 24*H, closedAt:null };
+      c.comms.push({ id:nid('m'), at, template:'Bid-open announcement (draft)', subject:subj, to:'All CSMs and ASMs (46)', thread:th, attachments:['Portfolio summary.pdf'] });
+      c.stage = Math.max(c.stage, 1); c.stageAt[1] = at;
+      lg(c, at, by, group.length > 1 ? `Combined bid-open email sent for batch ${batchId}. 24-hour window started.` : 'Bid-open email sent. 24-hour window started.');
+    });
+  };
+  const sendPack = (group, at, by, batchId) => {
+    const th = thread();
+    group.forEach(c => {
+      c.packs.push({v:1, at, by, bidders:c.bids.length, missing:0, batch:group.length > 1 ? batchId : null});
+      c.comms.push({ id:nid('m'), at, template:'Approval pack', subject: group.length > 1 ? `Takeover approval pack v1: batch ${batchId} (${group.length} portfolios)` : `Takeover approval pack v1: ${c.portfolio.name} (${c.outgoing.name})`, to:'Sakshi', thread:th, attachments:['Bid comparison v1.xlsx','Poll export.csv','Previous takeover trail.zip'] });
+      lg(c, at, by, group.length > 1 ? `Combined approval pack v1 for batch ${batchId} sent to Sakshi` : 'Approval pack v1 sent to Sakshi');
+    });
+  };
+
+  // Batch A: three resignations in the same week, bidding open together
+  const A = 'BAT-2026-07';
+  batches.push({id:A, createdAt:h(-40), by:'Tanya J. (HR)'});
+  const a1 = mk('TKO-2026-020','Priya Nair','EMP-09871','Manufacturing West',24,75,'Sonal Bhatia', d(-2), d(40), 'Tanya J. (HR)');
+  const a2 = mk('TKO-2026-021','Rohan Mehta','EMP-10482','BFSI North',18,62,'Amit Khurana', d(-1.9), d(44), 'Tanya J. (HR)');
+  const a3 = mk('TKO-2026-022','Sneha Pillai','EMP-11204','Pharma & Life Sciences',14,52,'Sonal Bhatia', d(-1.7), d(41), 'Tanya J. (HR)');
+  [a1, a2, a3].forEach(c => { c.batchId = A; lg(c, h(-40), 'Tanya J. (HR)', `Added to takeover batch ${A} with ${[a1, a2, a3].filter(x => x !== c).map(x => x.outgoing.name).join(' and ')}`); });
+  openBid([a1, a2, a3], h(-15), 'Tanya J. (HR)', A);
+  a1.bids = [mkBid('aditi', 64, h(-13), false), mkBid('farah', 70, h(-11), false), mkBid('meera', 68, h(-6), false)];
+  a2.bids = [mkBid('aditi', 58, h(-13), false), mkBid('rahul', 55, h(-7), false)];
+  a3.bids = [mkBid('deepak', 40, h(-2), false), mkBid('meera', 50, h(-6), false)];
+  cases.push(a1, a2, a3);
+
+  // Batch B: two resignations, combined pack waiting for Sakshi
+  const B = 'BAT-2026-06';
+  batches.push({id:B, createdAt:d(-9.5), by:'Tanya J. (HR)'});
+  const b1 = mk('TKO-2026-017','Ananya Rao','EMP-07745','Retail & E-commerce',21,58,'Sonal Bhatia', d(-10), d(22), 'Tanya J. (HR)');
+  const b2 = mk('TKO-2026-018','Manish Tiwari','EMP-10377','Energy & Utilities',11,46,'Amit Khurana', d(-9.8), d(24), 'Tanya J. (HR)');
+  [b1, b2].forEach(c => { c.batchId = B; lg(c, d(-9.5), 'Tanya J. (HR)', `Added to takeover batch ${B}`); });
+  openBid([b1, b2], d(-8), 'Tanya J. (HR)', B);
+  b1.bids = [mkBid('farah', 62, d(-7.8)), mkBid('pooja', 55, d(-7.6)), mkBid('meera', 66, d(-7.4)), mkBid('aditi', 60, d(-7.2))];
+  b2.bids = [mkBid('meera', 50, d(-7.5)), mkBid('rahul', 44, d(-7.4)), mkBid('siddharth', 39, d(-7.3)), mkBid('farah', 48, d(-7.1))];
+  [b1, b2].forEach(c => { c.bid.closedAt = d(-7); Object.assign(c.stageAt, {2:d(-7), 3:d(-6.8), 4:d(-4)}); c.stage = 4; c.attachments.push({name:`poll_export_${B}.csv`, at:d(-7), by:'Tanya J. (HR)'}); lg(c, d(-7), 'Tanya J. (HR)', 'Batch bidding closed. Poll export imported.'); });
+  sendPack([b1, b2], d(-4), 'Tanya J. (HR)', B);
+  cases.push(b1, b2);
+
+  // Single: just logged, bidding not opened (a new resignation can still join it as a batch)
+  const s0 = mk('TKO-2026-023','Divya Menon','EMP-11530','Insurance',13,44,'Amit Khurana', h(-5), d(45), 'Ritika S. (HR)');
+  cases.push(s0);
+
+  // Single: data compilation with missing data
+  let c = mk('TKO-2026-019','Vikram Sethi','EMP-08802','Healthcare South',15,48,'Amit Khurana', d(-6), d(30), 'Ritika S. (HR)');
+  openBid([c], d(-3.5), 'Ritika S. (HR)');
+  c.stage = 3; c.bid.closedAt = d(-2.5); c.stageAt[2] = d(-2.5); c.stageAt[3] = d(-2.4);
+  c.bids = [mkBid('meera', 52, d(-3.3)), mkBid('nikhil', 47, d(-3.1), false), mkBid('pooja', 50, d(-2.9)), mkBid('siddharth', 44, d(-2.8)), mkBid('kavya', 30, d(-2.7))];
+  c.bids[4].prev = null;
+  c.attachments.push({name:'poll_export_TKO-2026-019.csv', at:d(-2.5), by:'Ritika S. (HR)'});
+  lg(c, d(-2.5), 'Ritika S. (HR)', 'Bidding closed. Poll export imported (5 responses).');
+  cases.push(c);
+
+  // Single: handover in progress
+  c = mk('TKO-2026-015','Karan Malhotra','EMP-06611','Public Sector',12,40,'Amit Khurana', d(-24), d(8), 'Ritika S. (HR)');
+  openBid([c], d(-22), 'Ritika S. (HR)'); c.bid.closedAt = d(-21);
+  c.bids = [mkBid('meera', 46, d(-21.8)), mkBid('rahul', 42, d(-21.6)), mkBid('farah', 44, d(-21.4))];
+  sendPack([c], d(-18), 'Ritika S. (HR)');
+  c.decision = {by:'Sakshi', bidderId:c.bids[0].id, at:d(-15), remarks:'Strong upward record on both prior takeovers. Public-sector experience from Telecom North.'};
+  c.incoming = 'Meera Iyer';
+  c.target = {amount:98, previous:58, added:40, period:'Q3 FY27 (Oct to Dec 2026)', sentAt:d(-14), thread:'OL-54002', ackAt:d(-13)};
+  Object.assign(c.stageAt, {2:d(-21), 3:d(-20.5), 4:d(-18), 5:d(-15), 6:d(-14), 7:d(-13)}); c.stage = 7;
+  c.tasks = defaultTasks(c, n, 3, 3);
+  c.comms.push({ id:nid('m'), at:d(-14), template:'Revised target (draft)', subject:`Portfolio allocation and revised target: ${c.portfolio.name}`, to:'Meera Iyer; cc Amit Khurana', thread:'OL-54002', attachments:['Account list.xlsx'] });
+  c.comms.push({ id:nid('m'), at:d(-6), template:'Handover follow-up', subject:`Handover check-in: ${c.portfolio.name}, week 1`, to:'Karan Malhotra; Meera Iyer', thread:'OL-54390', attachments:[] });
+  lg(c, d(-15), 'Sakshi', 'Selected Meera Iyer as incoming CSM');
+  lg(c, d(-14), 'Ritika S. (HR)', 'Revised target email sent to Meera Iyer (₹98.0 L, Q3 FY27)');
+  lg(c, d(-13), 'Ritika S. (HR)', 'Target email acknowledged by Meera Iyer');
+  lg(c, d(-2), 'Ritika S. (HR)', 'Task blocked: CRM reassignment, waiting on IT ticket #44821');
+  cases.push(c);
+
+  // Single: on hold
+  c = mk('TKO-2026-016','Arjun Das','EMP-07320','Logistics East',16,44,'Sonal Bhatia', d(-12), d(18), 'Tanya J. (HR)');
+  c.exception = 'On Hold'; c.holdReason = 'Resignation withdrawal under discussion with manager';
+  lg(c, d(-11), 'Tanya J. (HR)', 'Case put on hold: ' + c.holdReason);
+  cases.push(c);
+
+  // Single: completed
+  c = mk('TKO-2026-012','Neha Kapoor','EMP-05290','IT Services Enterprise',20,70,'Amit Khurana', d(-52), d(-14), 'Ritika S. (HR)');
+  openBid([c], d(-50), 'Ritika S. (HR)'); c.bid.closedAt = d(-49);
+  c.bids = [mkBid('aditi', 66, d(-49.6)), mkBid('pooja', 61, d(-49.4))];
+  sendPack([c], d(-46), 'Ritika S. (HR)');
+  c.decision = {by:'Sakshi', bidderId:c.bids[0].id, at:d(-44), remarks:'Higher ceiling headroom and upward trend.'};
+  c.incoming = 'Aditi Sharma';
+  c.target = {amount:118, previous:52, added:66, period:'Q2 FY27 (Jul to Sep 2026)', sentAt:d(-43), thread:'OL-51770', ackAt:d(-42)};
+  Object.assign(c.stageAt, {2:d(-49), 3:d(-48), 4:d(-46), 5:d(-44), 6:d(-43), 7:d(-42), 8:d(-12)}); c.stage = 8; c.closedAt = d(-12);
+  c.tasks = defaultTasks(c, n, 6);
+  lg(c, d(-44), 'Sakshi', 'Selected Aditi Sharma as incoming CSM');
+  lg(c, d(-12), 'Ritika S. (HR)', 'Case closed. All handover checkpoints confirmed.');
+  cases.push(c);
+  const DESIG = {'Priya Nair':'Senior CSM', 'Rohan Mehta':'CSM', 'Sneha Pillai':'Associate CSM', 'Ananya Rao':'Senior CSM', 'Manish Tiwari':'CSM', 'Divya Menon':'CSM', 'Vikram Sethi':'Lead CSM', 'Karan Malhotra':'Senior CSM', 'Arjun Das':'CSM', 'Neha Kapoor':'Lead CSM'};
+  cases.forEach(x => { x.outgoing.designation = DESIG[x.outgoing.name] || ''; });
+  return {cases, batches};
+}
+
+/* ---------- state ---------- */
+/* per-viewer preferences stay in this browser; cases and batches live in the shared database */
+const KEY = 'csm-takeover-prefs-v3';
+const PREF_KEYS = ['role', 'view', 'caseId', 'tab', 'guide'];
+let S = { role:'hr', view:'cases', caseId:null, tab:'bids', q:'', stageF:'all', flagF:'all', sort:{key:null, dir:1}, guide:true, cases:[], batches:[] };
+try { const p = JSON.parse(localStorage.getItem(KEY) || 'null'); if (p) PREF_KEYS.forEach(k => { if (k in p) S[k] = p[k]; }); } catch(e) {}
+const savePrefs = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(PREF_KEYS.map(k => [k, S[k]])))); } catch(e) {} };
+
+let DB = null, USER = null, MODE = 'connecting', RO = false, CAN_ADMIN = false, SYNC_ERR = '';
+const loaded = {cases:false, batches:false};
+const lastJ = {cases:{}, batches:{}};
+const stable = v => Array.isArray(v) ? '[' + v.map(stable).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}' : JSON.stringify(v ?? null);
+let writing = Promise.resolve();
+// write only the documents that changed since the last snapshot, one at a time
+function persist(){
+  if (!shared() || RO) return;
+  writing = writing.then(async () => {
+    for (const col of ['cases', 'batches']) {
+      for (const x of S[col]) {
+        const j = stable(x);
+        if (lastJ[col][x.id] === j) continue;
+        lastJ[col][x.id] = j;
+        try { await DB.doc(col + '/' + x.id).set(JSON.parse(JSON.stringify(x))); }
+        catch (e) { writeFailed(e); return; }
+      }
+    }
+  });
+}
+function writeFailed(e){
+  if (e?.code === 'invalid_argument' || e?.code === 'not_granted') { RO = true; toast('You have view-only access, so your changes were not saved.'); }
+  else if (e?.code === 'quota_exceeded') toast('The shared database is full. Delete old cases before adding new ones.');
+  else toast('Could not save that change. Check your connection and try again.');
+  render();
+}
+let pendingRender = false;
+function safeRender(){
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('#root') && ['INPUT','TEXTAREA','SELECT'].includes(a.tagName) && a.id !== 'role-select') { pendingRender = true; return; }
+  render();
+}
+document.addEventListener('focusout', () => { if (pendingRender) { pendingRender = false; setTimeout(safeRender, 0); } });
+function applySnap(col, snap){
+  const list = snap.docs.map(d => JSON.parse(JSON.stringify(d.data())));
+  list.forEach(x => { lastJ[col][x.id] = stable(x); });
+  S[col] = col === 'cases' ? list.sort((a, b) => b.createdAt - a.createdAt) : list;
+  loaded[col] = true;
+  safeRender();
+}
+/* local server mode (node server.js): same doc/collection calls the page uses, backed by /api and polled for changes */
+let localPending = 0;
+async function localDB(){
+  try { const r = await fetch('api/batches', {cache:'no-store'}); if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return null; } catch(e) { return null; }
+  const call = async (method, url, body) => {
+    localPending++;
+    try {
+      const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:body ? JSON.stringify(body) : undefined});
+      if (!r.ok) throw {code: r.status === 400 ? 'invalid_argument' : 'unavailable'};
+    } catch(e) { throw e?.code ? e : {code:'unavailable'}; }
+    finally { localPending--; }
+  };
+  return {
+    doc: p => { const [col, id] = p.split('/'), url = 'api/' + col + '/' + encodeURIComponent(id); return { set: d => call('PUT', url, d), delete: () => call('DELETE', url) }; },
+    collection: col => ({ onSnapshot(next){
+      let last = null, stop = false;
+      const tick = async () => {
+        if (stop) return;
+        if (!localPending) try {
+          const r = await fetch('api/' + col, {cache:'no-store'}), txt = await r.text();
+          if (r.ok && txt !== last && !localPending) { last = txt; next({docs: JSON.parse(txt).map(x => ({data: () => x}))}); }
+        } catch(e) {}
+        setTimeout(tick, 3000);
+      };
+      tick();
+      return () => { stop = true; };
+    } })
+  };
+}
+const shared = () => MODE === 'live' || MODE === 'local';
+async function boot(){
+  const use = n => window.claude?.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
+  const [db, user] = await Promise.all([use('db'), use('user')]);
+  if (!db) {
+    const local = await localDB();
+    if (!local) { MODE = 'offline'; Object.assign(S, seed()); render(); return; }
+    DB = local; MODE = 'local'; CAN_ADMIN = true;
+    if (S.view === 'employees') loadEmployees();
+    DB.collection('cases').onSnapshot(s => applySnap('cases', s));
+    DB.collection('batches').onSnapshot(s => applySnap('batches', s));
+    render(); return;
+  }
+  DB = db; USER = user;
+  const cw = user ? await user.can('data.write') : null;
+  RO = cw === false;
+  CAN_ADMIN = user ? await user.canEdit() : false;
+  MODE = 'live';
+  const onErr = e => { SYNC_ERR = e?.code === 'revoked' ? 'Your access to this page changed. Reload to continue.' : 'Live updates stopped. Reload the page to see the latest changes.'; render(); };
+  DB.collection('cases').onSnapshot(s => applySnap('cases', s), onErr);
+  DB.collection('batches').onSnapshot(s => applySnap('batches', s), onErr);
+  render();
+}
+const ready = () => MODE === 'offline' || (shared() && loaded.cases && loaded.batches);
+const cur = () => S.cases.find(c => c.id === S.caseId);
+const who = () => ROLES[S.role].who;
+const isHR = () => S.role === 'hr' && !RO;
+const sensitive = () => S.role !== 'viewer';
+const log = (c, text) => c.log.push({at:Date.now(), by:who(), text});
+const setStage = (c, i) => { c.stage = i; c.stageAt[i] = Date.now(); log(c, 'Stage changed to ' + STAGES[i]); };
+
+/* batch helpers: a batch is a set of resignations whose takeover runs together up to Sakshi's decision */
+const members = id => S.cases.filter(x => x.batchId === id);
+const group = c => c.batchId && c.stage <= SHARED_UPTO ? members(c.batchId).filter(x => !x.exception && x.stage === c.stage) : [c];
+const inBatch = c => !!c.batchId && members(c.batchId).length > 1;
+const forAll = (c, n = group(c).length) => n > 1 ? ` for all ${n} portfolios` : '';
+const newBatchId = () => 'BAT-2026-' + pad(Math.max(0, ...S.batches.map(b => +b.id.slice(-2))) + 1);
+
+/* ---------- derived ---------- */
+function dueOf(c){
+  if (c.exception) return null;
+  const b = c.bid || {};
+  return [c.createdAt + D, b.closeAt, (b.closedAt || b.closeAt) + D, (b.closedAt || b.closeAt) + 2*D,
+    (c.packs.at(-1) || {}).at + 2*D, (c.decision || {}).at + D, (c.target || {}).sentAt + 2*D, c.lwd, null][c.stage] ?? null;
+}
+const dueLabel = ['Launch bidding','Bidding closes','Start compilation','Send pack to Sakshi','Sakshi decision','Send target email','Target acknowledgement','Handover complete by LWD',''];
+const idxOf = b => b.role === 'ASM' ? b.asmIndex : b.csmIndex;
+function missingOf(b){
+  const m = [];
+  if (b.ceiling == null) m.push('Ceiling');
+  if (idxOf(b) == null) m.push(b.role + ' Index');
+  if (b.papip == null) m.push('PAPIP');
+  if (b.prev == null) m.push('Previous takeovers');
+  else if (b.prev.length && b.trend == null) m.push('Trend');
+  return m;
+}
+const caseMissing = c => c.bids.reduce((n, b) => n + missingOf(b).length, 0);
+function statusPill(c){
+  if (c.exception === 'Cancelled') return '<span class="pill mute">Cancelled</span>';
+  if (c.exception === 'On Hold') return '<span class="pill warn">On Hold</span>';
+  if (c.stage === 8) return '<span class="pill ok">Completed</span>';
+  return `<span class="pill">${STAGES[c.stage]}</span>`;
+}
+const fmtS = t => { if (t == null) return '—'; const d = new Date(t); return d.getFullYear() === new Date().getFullYear() ? `${d.getDate()} ${MON[d.getMonth()]}` : fmtD(t); };
+const term = (label, tip) => `<span class="tip" title="${esc(tip)}">${label}</span>`;
+
+/* plain-language guide: the 9 statuses grouped into 5 steps a newcomer can follow */
+const PHASES = [
+  {t:'Resignation logged', who:'HR', d:'HR records the resignation from PMS. CSMs who resign around the same time are grouped into one batch.'},
+  {t:'Bidding, 24 hours', who:'All CSMs and ASMs', d:'One email with a poll link goes to everyone. They have 24 hours to bid for the portfolio.'},
+  {t:'Compare bids', who:'HR', d:"HR adds each bidder's PAPIP status and past takeover results, then sends the comparison to Sakshi."},
+  {t:'Sakshi decides', who:'Sakshi', d:'Sakshi reviews the comparison and picks the new CSM. The dashboard never picks for her.'},
+  {t:'Target and handover', who:'HR and both CSMs', d:'The new CSM gets a revised target email. Outgoing and incoming CSMs finish the handover checklist.'}
+];
+const phaseOf = s => s === 0 ? 0 : s === 1 ? 1 : s <= 3 ? 2 : s === 4 ? 3 : s <= 7 ? 4 : 5;
+const WHO_ACTS = ['HR','CSMs and ASMs (bidding)','HR','HR','Sakshi','HR','HR','HR, outgoing and incoming CSM',''];
+const TERMS = [
+  ['Batch', 'Resignations that come in around the same time. They share one bid email, one poll, one 24-hour window and one approval pack.'],
+  ['Last working day (LWD)', "The outgoing CSM's final day. The handover should finish before it."],
+  ['Bid amount', 'What the bidder offers to take on for this portfolio, in ₹ lakh (L) per quarter.'],
+  ['Ceiling', "The bidder's capacity limit from the poll. Exact calculation to be confirmed."],
+  ['CSM Index / ASM Index', 'Performance score of the bidder. CSMs have a CSM Index, ASMs an ASM Index. Calculation to be confirmed.'],
+  ['PAPIP', 'Performance improvement plan status: None, Active or Closed. Only HR and Sakshi can see it.'],
+  ['Trend', "How the bidder's earlier takeovers went: ▲ up, ▬ stable or ▼ down."],
+  ['Approval pack', 'The bid comparison sheet and email trail that HR sends to Sakshi for her decision.'],
+  ['⚠ Missing', 'Data not provided yet. It is never counted as zero, so gaps stay visible.']
+];
+const tipOf = name => (TERMS.find(t => t[0].startsWith(name)) || [, ''])[1];
+function guideHTML(inModal){
+  return `${inModal ? '' : `<div class="guide-h"><div><h2>How a takeover works</h2><p>When a CSM resigns, their portfolio moves to a new CSM in 5 steps. Click any row below to open that case and see what to do next.</p></div><button class="linkbtn" data-act="guide">Hide this guide</button></div>`}
+  <div class="phases">${PHASES.map((p, i) => `<div class="phase"><span class="n">${i + 1}</span><b>${p.t}</b><p>${p.d}</p><span class="whochip">${p.who}</span></div>`).join('')}</div>
+  <div class="terms"><details ${inModal ? 'open' : ''}><summary>What do the terms mean?</summary><dl>${TERMS.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></details></div>`;
+}
+function nextShort(c){
+  if (c.exception === 'Cancelled') return {text:'Cancelled: ' + c.holdReason};
+  if (c.exception === 'On Hold') return {text:'On hold: ' + c.holdReason};
+  const due = dueOf(c), when = due ? 'by ' + fmtS(due) : '';
+  const done = c.tasks.filter(t => t.status === 'done').length;
+  return [
+    {text:'Send the bid email to all CSMs', who:'HR', when},
+    {text:`Bids coming in, ${c.bids.length} so far`, who:'CSMs and ASMs', when:Date.now() < c.bid?.closeAt ? 'closes ' + rel(c.bid.closeAt) : 'window ended, close bidding'},
+    {text:'Start comparing the bids', who:'HR', when},
+    {text:caseMissing(c) ? 'Fill missing bidder data, then send to Sakshi' : 'Send the comparison to Sakshi', who:'HR', when},
+    {text:'Sakshi to choose the new CSM', who:'Sakshi', when:'pack sent ' + rel(c.packs.at(-1)?.at)},
+    {text:`Send the target email to ${c.incoming}`, who:'HR', when},
+    {text:`Get ${c.incoming}'s acknowledgement`, who:'HR', when},
+    {text:`Handover: ${done} of ${c.tasks.length} tasks done`, who:'HR and both CSMs', when:'finish by ' + fmtS(c.lwd)},
+    {text:'Completed on ' + fmtS(c.closedAt)}
+  ][c.stage];
+}
+
+/* ---------- render ---------- */
+function render(){
+  savePrefs();
+  const open = S.cases.filter(c => c.stage < 8 && !c.exception);
+  const pendingUnits = new Set(open.filter(c => c.stage === 4).map(c => c.batchId || c.id)).size;
+  document.getElementById('root').innerHTML = `
+  <div class="app">
+    <aside class="rail">
+      <div class="brand"><div class="brand-mark">CT</div><div><b>CSM Takeover Dashboard</b><span>CSM resignation workflow</span></div></div>
+      <nav class="nav" aria-label="Sections">
+        ${navBtn('cases','Takeover cases', open.length)}
+        ${navBtn('approvals','Approval queue', pendingUnits)}
+        ${navBtn('comms','Communication log')}
+        ${navBtn('activity','Activity log')}
+        ${MODE === 'local' ? navBtn('employees','Employee master', EMP.state === 'ok' ? empRows().length : null) : ''}      </nav>
+      <div class="rolebox">
+        <span class="eyebrow">Viewing as</span>
+        <select id="role-select" aria-label="Viewing as">${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === S.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select>
+        <p>Switch to see the dashboard as each person would. HR runs the process, Sakshi approves, and CSMs get a limited view.</p>
+        <p><span class="demo" style="margin:0">Demo</span> All names and figures are sample data.</p>
+        <p>${syncLine()}</p>
+        ${(MODE === 'offline' || (CAN_ADMIN && !RO)) ? '<button class="linkbtn" data-act="reset">Reset demo data</button>' : ''}
+      </div>
+    </aside>
+    <main>${SYNC_ERR ? `<div class="banner"><span>${esc(SYNC_ERR)}</span></div>` : ''}${RO && MODE === 'live' ? '<div class="banner info"><span>You have view-only access. You can look around, but changes are not saved. Ask the owner for Contributor access to work on cases.</span></div>' : ''}${!ready() ? loadingView() : S.view === 'employees' && MODE === 'local' ? employeesView() : !S.cases.length ? emptyView() : S.view === 'case' && cur() ? caseView(cur()) : S.view === 'approvals' ? approvalsView() : S.view === 'comms' ? commsView() : S.view === 'activity' ? activityView() : casesView()}</main>
+  </div>`;
+}
+/* Employee Master: read from the PMS employee API through the local server (credentials stay server-side) */
+const EMP = {state:'idle', all:[], dept:'Sales', q:'', err:'', fetchedAt:null};
+async function loadEmployees(refresh){
+  EMP.state = 'loading'; EMP.err = ''; safeRender();
+  try {
+    const r = await fetch('api/employees' + (refresh ? '?refresh=1' : ''), {cache:'no-store'});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'The server could not load employees.');
+    EMP.all = j.employees || []; EMP.fetchedAt = j.fetchedAt; EMP.state = 'ok';
+    if (refresh) toast(`Loaded ${EMP.all.length} employees from PMS`);
+  } catch(e) { EMP.state = 'error'; EMP.err = e.message || 'Could not reach the server.'; }
+  safeRender();
+}
+const empRows = () => {
+  const q = EMP.q.trim().toLowerCase();
+  return EMP.all.filter(e => (EMP.dept === 'all' || (e.department || '').toLowerCase() === EMP.dept.toLowerCase())
+    && (!q || [e.code, e.name, e.designation, e.manager].join(' ').toLowerCase().includes(q)))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+};
+const empDate = s => { if (!s) return ''; const t = Date.parse(s); return isNaN(t) ? esc(s) : fmtD(t); };
+function employeesView(){
+  const head = `<div class="topline"><div><h1>Employee master</h1><p class="sub">Live from the PMS employee API. Shows the Sales team by default.</p></div>
+    <div class="btnrow"><button class="btn" data-act="emp-refresh" ${EMP.state === 'loading' ? 'disabled' : ''}>Refresh from PMS</button></div></div>`;
+  if (EMP.state === 'idle' || EMP.state === 'loading') return head + `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Loading employees from PMS…</h3><p>This can take a few seconds.</p></div></div>`;
+  if (EMP.state === 'error') return head + `<div class="banner"><span><b>Could not load employees.</b> ${esc(EMP.err)} Check the internet connection and the KITES settings in the .env file, then try again.</span></div>`;
+  const depts = {};
+  EMP.all.forEach(e => { const d = e.department || 'No department'; depts[d] = (depts[d] || 0) + 1; });
+  const rows = empRows(), noCode = rows.filter(e => !e.code).length, resigned = rows.filter(e => e.resignationDate).length;
+  return head + `
+  ${noCode ? `<div class="banner"><span><b>The PMS API does not send employee codes yet.</b> ${noCode === rows.length ? 'None' : 'Some'} of these records include an <span class="mono">emp_code</span> field, so codes show as "Not in API". Ask the PMS team to add it to the Get Employee Details response. Codes will appear here automatically once they do.</span></div>` : ''}
+  <div class="panel">
+    <div class="panel-h">
+      <div class="filters" style="flex:1">
+        <input type="search" id="empq" placeholder="Search by name, code, designation or manager" value="${esc(EMP.q)}" aria-label="Search employees">
+        <select id="empDept" aria-label="Department">
+          <option value="all" ${EMP.dept === 'all' ? 'selected' : ''}>All departments (${EMP.all.length})</option>
+          ${Object.keys(depts).sort().map(d => `<option value="${esc(d)}" ${EMP.dept.toLowerCase() === d.toLowerCase() ? 'selected' : ''}>${esc(d)} (${depts[d]})</option>`).join('')}
+        </select>
+      </div>
+      <span class="muted num">${rows.length} employees${resigned ? ` · ${resigned} resigned` : ''} · updated ${EMP.fetchedAt ? fmtDT(EMP.fetchedAt) : ''}</span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Employee code</th><th>Name</th><th>Designation</th><th>Department</th><th>Manager</th><th>Status</th></tr></thead>
+      <tbody>${rows.map(e => `<tr>
+        <td class="mono">${e.code ? esc(e.code) : '<span class="miss" title="The API response has no employee code field">Not in API</span>'}</td>
+        <td><b style="font-weight:500">${esc(e.name) || '<span class="muted">No name</span>'}</b></td>
+        <td>${esc(e.designation) || '<span class="muted">—</span>'}</td>
+        <td>${esc(e.department) || '<span class="muted">—</span>'}</td>
+        <td>${esc(e.manager) || '<span class="muted">—</span>'}</td>
+        <td class="nowrap">${e.resignationDate ? `<span class="pill warn">Resigned ${empDate(e.resignationDate)}</span>${e.lastWorkingDay ? `<div class="muted" style="font-size:12px;margin-top:3px">Last day ${empDate(e.lastWorkingDay)}</div>` : ''}` : '<span class="pill ok">Active</span>'}</td>
+      </tr>`).join('') || '<tr><td colspan="6" class="empty">No employees match.</td></tr>'}</tbody>
+    </table></div>
+  </div>
+  <p class="note">Only name, department, designation, manager and resignation dates are shown. Bank, address, phone and other personal fields from PMS are never sent to the browser.</p>`;
+}
+function syncLine(){
+  if (MODE === 'live') return RO ? '<span style="color:var(--info)">●</span> Shared data · view only' : '<span style="color:var(--ok)">●</span> Live · changes are saved and shared with everyone who opens this link';
+  if (MODE === 'local') return '<span style="color:var(--ok)">●</span> Local server · changes are saved in data/db.json';
+  if (MODE === 'offline') return '<span style="color:var(--warn)">●</span> Offline copy · changes are not saved';
+  return '<span class="muted">●</span> Connecting…';
+}
+const loadingView = () => `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Loading takeover cases…</h3><p>Fetching the shared data. This takes a moment.</p></div></div>`;
+const emptyView = () => `<div class="topline"><div><h1>Takeover cases</h1><p class="sub">No cases yet.</p></div></div>
+  <div class="panel"><div class="empty"><h3 style="color:var(--ink)">There are no takeover cases yet</h3>
+  <p>Start a takeover from a PMS resignation, or load the demo cases to explore how the dashboard works.</p>
+  <div class="btnrow" style="justify-content:center">${isHR() ? '<button class="btn" data-act="load-demo">Load demo data</button><button class="btn primary" data-act="new-case">+ New takeover from PMS</button>' : '<span class="note">Ask HR to add the first case.</span>'}</div></div></div>`;
+const navBtn = (v, label, n) => `<button data-act="nav" data-v="${v}" class="${S.view === v || (v === 'cases' && S.view === 'case') ? 'on' : ''}"><span>${label}</span>${n != null ? `<span class="count">${n}</span>` : ''}</button>`;
+
+function caseRow(c, isMember){
+  const miss = caseMissing(c), nx = nextShort(c), ph = phaseOf(c.stage);
+  return `<tr class="click ${isMember ? 'member' : ''}" data-act="open-case" data-id="${c.id}" tabindex="0" title="Open ${esc(c.outgoing.name)}'s case">
+    <td class="mono">${esc(c.outgoing.emp)}</td>
+    <td style="min-width:140px"><b style="font-weight:500">${esc(c.outgoing.name)}</b><div class="muted" style="font-size:12px">${c.incoming ? 'New CSM: ' + esc(c.incoming) : 'Resigned ' + fmtS(c.resignDate)}</div></td>
+    <td class="nowrap">${c.outgoing.designation ? esc(c.outgoing.designation) : '<span class="muted">Not recorded</span>'}</td>
+    <td class="num nowrap">${fmtS(c.lwd)}</td>
+    <td class="nowrap">${statusPill(c)}<div class="muted" style="font-size:12px;margin-top:4px">${c.exception ? 'Paused' : ph < 5 ? `Step ${ph + 1} of 5: ${PHASES[ph].t}` : 'All 5 steps done'}</div></td>
+    <td style="min-width:210px">${esc(nx.text)}${nx.who || nx.when ? `<div class="muted" style="font-size:12px">${nx.who ? 'By ' + nx.who : ''}${nx.who && nx.when ? ' · ' : ''}${nx.when || ''}</div>` : ''}</td>
+    <td>${miss ? `<span class="miss" title="Some bidder details are not provided yet">⚠ ${miss} missing</span>` : '<span class="muted">None</span>'}</td>
+  </tr>`;
+}
+function batchHeaderRow(id, shown){
+  const all = members(id), active = all.filter(x => !x.exception), lead = active[0] || all[0];
+  const shared = active.length && active.every(x => x.stage <= SHARED_UPTO);
+  return `<tr class="batch"><td colspan="7"><div class="btnrow" style="gap:6px 12px">
+    <span class="pill batchp mono" title="${esc(tipOf('Batch'))}">Batch ${id}</span>
+    <b style="font-weight:600">${all.length} CSMs resigned together, so they are handled as one takeover</b>
+    <span class="muted">${shared ? `${lead.bid ? `One bid window: ${fmtDT(lead.bid.openAt)} to ${fmtDT(lead.bid.closeAt)}` : 'Bidding not opened yet'}` : 'Sakshi has chosen a new CSM for each. Target and handover now run case by case.'}</span>
+    ${shown < all.length ? `<span class="muted">(${shown} of ${all.length} match filters)</span>` : ''}
+  </div></td></tr>`;
+}
+
+function casesView(){
+  const all = S.cases;
+  const q = S.q.trim().toLowerCase();
+  const rows = all.filter(c => {
+    if (q && ![c.id, c.batchId, c.outgoing.emp, c.outgoing.name, c.portfolio.name, c.pms, c.owner, c.incoming].join(' ').toLowerCase().includes(q)) return false;
+    if (S.stageF !== 'all' && !(S.stageF === 'exc' ? c.exception : !c.exception && String(c.stage) === S.stageF)) return false;
+    if (S.flagF === 'batch' && !inBatch(c)) return false;
+    if (S.flagF === 'missing' && !caseMissing(c)) return false;
+    if (S.flagF === 'open' && (c.stage === 8 || c.exception)) return false;
+    return true;
+  });
+  // group batch members under one header row, in order of first appearance
+  const seen = new Set(), body = [];
+  rows.forEach(c => {
+    if (inBatch(c)) {
+      if (seen.has(c.batchId)) return;
+      seen.add(c.batchId);
+      const m = rows.filter(x => x.batchId === c.batchId);
+      body.push(batchHeaderRow(c.batchId, m.length), ...m.map(x => caseRow(x, true)));
+    } else body.push(caseRow(c, false));
+  });
+  return `
+  <div class="topline">
+    <div><h1>Takeover cases</h1><p class="sub">Every CSM who has resigned, and how far their portfolio's handover to a new CSM has got.</p></div>
+    <div class="btnrow">
+      <button class="btn" data-act="copy-list" title="Copy this list to paste into Excel">Copy as CSV</button>
+      <button class="btn primary" data-act="new-case" ${isHR() ? 'title="Start a takeover for one or more new resignations"' : 'disabled title="Only HR can start a takeover"'}>+ New takeover from PMS</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-h">
+      <div class="filters" style="flex:1">
+        <input type="search" id="q" placeholder="Search by name, employee code or portfolio" value="${esc(S.q)}" aria-label="Search cases">
+        <select id="stageF" aria-label="Stage">
+          <option value="all">All stages</option>
+          ${STAGES.map((s, i) => `<option value="${i}" ${S.stageF === String(i) ? 'selected' : ''}>${s}</option>`).join('')}
+          <option value="exc" ${S.stageF === 'exc' ? 'selected' : ''}>On Hold / Cancelled</option>
+        </select>
+        <select id="flagF" aria-label="Show">
+          <option value="all">All cases</option>
+          <option value="open" ${S.flagF === 'open' ? 'selected' : ''}>Open only</option>
+          <option value="batch" ${S.flagF === 'batch' ? 'selected' : ''}>Batch takeovers only</option>
+          <option value="missing" ${S.flagF === 'missing' ? 'selected' : ''}>Missing bidder data</option>
+        </select>
+        ${(S.q || S.stageF !== 'all' || S.flagF !== 'all') ? '<button class="linkbtn" data-act="clear-f">Clear filters</button>' : ''}
+      </div>
+      <span class="muted num">${rows.length} of ${all.length}</span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Employee code</th><th>Resigned CSM</th><th>Designation</th><th>${term('Last day', tipOf('Last working day'))}</th><th>Where it is</th><th>What happens next</th><th>${term('Data gaps', tipOf('⚠ Missing'))}</th></tr></thead>
+      <tbody>${body.join('') || `<tr><td colspan="7" class="empty">No cases match these filters.</td></tr>`}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function batchBar(c){
+  if (!inBatch(c)) return '';
+  const all = members(c.batchId), shared = c.stage <= SHARED_UPTO;
+  return `<div class="batchbar">
+    <span class="pill batchp mono">${c.batchId}</span>
+    <span>${shared ? `Bidding and Sakshi's approval run together for all ${all.length} portfolios in this batch.` : 'Allocated together with this batch. Target and handover are tracked for this case only.'}</span>
+    <span class="who">${all.map(x => x.id === c.id ? `<span class="chip me">${esc(x.outgoing.name)} · ${esc(x.portfolio.name)}</span>` : `<button class="chip" data-act="open-case" data-id="${x.id}">${esc(x.outgoing.name)} · ${esc(x.portfolio.name)}${x.exception ? ' (' + x.exception + ')' : ''}</button>`).join('')}</span>
+  </div>`;
+}
+
+function caseView(c){
+  const due = dueOf(c);
+  const tabs = [['bids','Bid tracker'],['compare','Bid comparison'],['approval','Approval'],['handover','Target & handover'],['comms','Communications'],['activity','Activity log']];
+  return `
+  <div><button class="back" data-act="nav" data-v="cases">← All cases</button></div>
+  <div class="casehead">
+    <div>
+      <div class="eyebrow mono">${c.id} · ${esc(c.pms)}${c.batchId ? ' · ' + c.batchId : ''}</div>
+      <h1 style="margin-top:4px">${esc(c.outgoing.name)} · ${esc(c.portfolio.name)}</h1>
+      <div class="meta">
+        <span>Employee <b class="mono">${esc(c.outgoing.emp)}</b></span>
+        <span>Designation <b>${esc(c.outgoing.designation) || 'Not recorded'}</b></span>
+        <span>Resigned <b>${fmtD(c.resignDate)}</b></span>
+        <span>Last working day <b>${fmtD(c.lwd)}</b></span>
+        <span>Portfolio <b>${c.portfolio.accounts} accounts, ${lakh(c.portfolio.target)}/qtr</b></span>
+        <span>Manager <b>${esc(c.manager)}</b></span>
+        <span>Owner <b>${esc(c.owner)}</b></span>
+      </div>
+    </div>
+    <div class="btnrow">
+      ${statusPill(c)}
+      ${c.stage < 8 && c.exception !== 'Cancelled' ? (c.exception === 'On Hold'
+        ? `<button class="btn sm" data-act="resume" ${isHR() ? '' : 'disabled'}>Resume</button>`
+        : `<button class="btn sm" data-act="hold" ${isHR() ? '' : 'disabled'}>Put on hold</button>`) +
+        `<button class="btn sm danger" data-act="cancel" ${isHR() ? '' : 'disabled'}>Cancel case</button>` : ''}
+    </div>
+  </div>
+  ${batchBar(c)}
+  <div class="stepper" role="list" aria-label="Case stages">
+    ${STAGES.map((s, i) => {
+      const st = c.stage === 8 || i < c.stage ? 'done' : i === c.stage ? 'cur' : 'todo';
+      return `<div class="step ${st}" role="listitem"><span class="dot"></span><b>${s}</b><span>${c.stageAt[i] ? fmtDT(c.stageAt[i]) : i === c.stage && due ? 'due ' + fmtDT(due) : ''}</span>${inBatch(c) && i >= 1 && i <= SHARED_UPTO + 1 ? '<em>Batch</em>' : ''}</div>`;
+    }).join('')}
+  </div>
+  ${nextCard(c)}
+  <div class="tabs" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${S.tab === k}" class="${S.tab === k ? 'on' : ''}" data-act="tab" data-t="${k}">${l}${k === 'compare' && caseMissing(c) ? ` <span class="count">${caseMissing(c)}</span>` : ''}</button>`).join('')}</div>
+  <p class="note tabhelp">${TAB_HELP[S.tab]}</p>
+  <div>${({bids:bidsTab, compare:compareTab, approval:approvalTab, handover:handoverTab, comms:commsTab, activity:activityTab})[S.tab](c)}</div>`;
+}
+
+const TAB_HELP = {
+  bids:'Responses from the bidding poll. Bidding stays open for 24 hours after the bid email is sent.',
+  compare:'Side-by-side view of every bidder, with their performance history. HR fills any gaps before sending this to Sakshi.',
+  approval:'What was sent to Sakshi, and the new CSM she chose.',
+  handover:"The new CSM's revised target and the handover checklist. The case can be closed once every item is done.",
+  comms:'Every email sent for this case: bid email, approval pack, target email and follow-ups.',
+  activity:'A permanent record of who did what and when. Entries cannot be edited or deleted.'
+};
+function nextCard(c){
+  if (c.exception === 'Cancelled') return `<div class="next hold"><div><h3>Case cancelled</h3><p>${esc(c.holdReason)}</p></div></div>`;
+  if (c.exception === 'On Hold') return `<div class="next hold"><div><h3>On hold</h3><p>${esc(c.holdReason)}.${c.batchId ? ' This case is left out of batch actions while on hold.' : ''}</p></div><div class="btnrow"><button class="btn primary" data-act="resume" ${isHR() ? '' : 'disabled'}>Resume case</button></div></div>`;
+  const due = dueOf(c), hr = isHR() ? '' : 'disabled title="HR / Process Owner only"';
+  const g = group(c), all = forAll(c), nb = g.reduce((n, x) => n + x.bids.length, 0), nm = g.reduce((n, x) => n + caseMissing(x), 0);
+  const dueTxt = due ? ` Due ${fmtDT(due)}.` : '';
+  const A = {
+    0: [g.length > 1 ? `Open bidding for all ${g.length} portfolios` : 'Open bidding', g.length > 1 ? 'One combined bid-open email goes to all CSMs with a single poll covering every portfolio in this batch. Sending it starts one 24-hour window.' : 'Generate the bid-open email with the poll link. Sending it starts the 24-hour window. If another CSM resigns before you send it, add that resignation to this takeover so both run together.', `<button class="btn primary" data-act="gen-bid" ${hr}>Generate ${g.length > 1 ? 'combined ' : ''}bid email</button>`],
+    1: ['Collect poll responses', `${nb} responses so far${g.length > 1 ? ` across ${g.length} portfolios` : ''}. Window closes ${fmtDT(c.bid?.closeAt)} (${rel(c.bid?.closeAt)}).`, `<button class="btn" data-act="add-bid" ${hr}>Add response</button><button class="btn primary" data-act="close-bid" ${hr}>Close bidding${all}</button>`],
+    2: ['Enrich bidder data', 'Add PAPIP status, previous takeovers and their trend for each bidder.', `<button class="btn primary" data-act="start-compile" ${hr}>Start data compilation${all}</button>`],
+    3: [g.length > 1 ? 'Compile one approval pack for the batch' : 'Compile the approval pack', nm ? `${nm} data points are still missing${g.length > 1 ? ' across the batch' : ''}. You can still send, and they will show as missing.` : 'All comparison fields are filled.', `<button class="btn" data-act="tab" data-t="compare">Review comparison</button><button class="btn primary" data-act="send-approval" ${hr}>Send ${g.length > 1 ? 'combined ' : ''}pack to Sakshi</button>`],
+    4: ["Waiting for Sakshi's decision", `Pack v${c.packs.at(-1)?.v} sent ${fmtDT(c.packs.at(-1)?.at)}.${g.length > 1 ? ` Sakshi allocates all ${g.length} portfolios in one decision.` : ''}`, S.role === 'approver' ? `<button class="btn primary" data-act="tab" data-t="approval">Review and decide</button>` : `<button class="btn" data-act="send-approval" ${hr}>Send revised pack</button><button class="btn primary" data-act="tab" data-t="approval">Open approval</button>`],
+    5: ['Send revised target email', `${esc(c.incoming)} was selected. Prepare the allocation and revised target email.`, `<button class="btn primary" data-act="prep-target" ${hr}>Prepare target email</button>`],
+    6: ['Confirm acknowledgement', `Target email sent ${fmtDT(c.target?.sentAt)}. ${c.target?.ackAt ? 'Acknowledged.' : 'Not yet acknowledged.'}`, `${c.target?.ackAt ? '' : `<button class="btn" data-act="ack-target" ${hr}>Record acknowledgement</button>`}<button class="btn primary" data-act="start-handover" ${hr}>Start handover</button>`],
+    7: ['Track handover to closure', `${c.tasks.filter(t => t.status === 'done').length} of ${c.tasks.length} tasks done${c.tasks.some(t => t.status === 'blocked') ? ', 1 or more blocked' : ''}.`, `<button class="btn primary" data-act="tab" data-t="handover">Open handover</button>`],
+    8: ['Case completed', `Closed ${fmtDT(c.closedAt)}. The audit trail is preserved below.`, '']
+  }[c.stage];
+  return `<div class="next"><div><span class="eyebrow">${c.stage < 8 ? `Next step · done by ${WHO_ACTS[c.stage]}` : 'Status'}</span><h3>${A[0]}</h3><p>${A[1]}${c.stage < 8 ? dueTxt : ''}</p></div><div class="btnrow">${A[2]}</div></div>`;
+}
+
+function batchMatrix(c){
+  if (!inBatch(c)) return '';
+  const cols = members(c.batchId).filter(x => x.bid);
+  if (!cols.length) return '';
+  const names = [...new Set(cols.flatMap(x => x.bids.map(b => b.name)))].sort();
+  return `<div class="panel">
+    <div class="panel-h"><div><h2>Batch bids: one poll, ${cols.length} portfolios</h2><p class="note" style="margin-top:2px">A bidder can bid on more than one portfolio. Each column is one resignation in ${c.batchId}.</p></div></div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Bidder</th>${cols.map(x => `<th style="${x.id === c.id ? 'color:var(--accent)' : ''}">${esc(x.portfolio.name)}<div style="text-transform:none;letter-spacing:0;font-weight:400">${esc(x.outgoing.name)}</div></th>`).join('')}<th>Portfolios bid</th></tr></thead>
+      <tbody>${names.map(n => { const cells = cols.map(x => x.bids.find(b => b.name === n)); return `<tr><td><b style="font-weight:500">${esc(n)}</b></td>${cells.map(b => `<td class="num">${b ? lakh(b.bid) : '<span class="cell-none">—</span>'}</td>`).join('')}<td class="num">${cells.filter(Boolean).length}</td></tr>`; }).join('') || `<tr><td colspan="${cols.length + 2}" class="empty">No responses yet.</td></tr>`}
+      <tr><td class="muted">Responses</td>${cols.map(x => `<td class="num muted">${x.bids.length}</td>`).join('')}<td></td></tr></tbody>
+    </table></div></div>`;
+}
+
+function bidsTab(c){
+  if (!c.bid) {
+    const g = group(c);
+    return `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Bidding hasn't opened</h3><p>${g.length > 1 ? `This batch has ${g.length} resignations. One combined bid-open email will cover all of them.` : 'Generate the bid-open email to all CSMs. The poll link and 24-hour deadline are added automatically.'}</p><button class="btn primary" data-act="gen-bid" ${isHR() ? '' : 'disabled'}>Generate ${g.length > 1 ? 'combined ' : ''}bid email</button></div></div>`;
+  }
+  const b = c.bid, live = c.stage === 1;
+  return `<div class="stack">
+  <div class="panel"><div class="panel-b"><dl class="kv" style="margin:0">
+    <div><dt>Poll link</dt><dd><a href="${esc(b.pollUrl)}" target="_blank" rel="noopener" style="color:var(--info)">${esc(b.pollUrl.replace('https://',''))}</a>${inBatch(c) ? '<div class="muted" style="font-size:11.5px">Shared by the whole batch</div>' : ''}</dd></div>
+    <div><dt>Bid email sent</dt><dd class="num">${fmtDT(b.sentAt)}</dd></div>
+    <div><dt>Window</dt><dd class="num">${fmtDT(b.openAt)} to ${fmtDT(b.closeAt)}</dd></div>
+    <div><dt>Status</dt><dd>${live ? (Date.now() > b.closeAt ? '<span class="pill warn">Deadline passed, close bidding</span>' : `<span class="pill info">Open, closes ${rel(b.closeAt)}</span>`) : `<span class="pill mute">Closed ${fmtDT(b.closedAt)}</span>`}</dd></div>
+    <div><dt>Submissions</dt><dd class="num">${c.bids.length} for this portfolio</dd></div>
+    <div><dt>Source files</dt><dd>${c.attachments.length ? c.attachments.map(a => `<div class="mono">${esc(a.name)}</div><div class="muted" style="font-size:11.5px">${fmtDT(a.at)} · ${esc(a.by)}</div>`).join('') : '<span class="muted">No export imported yet</span>'}</dd></div>
+  </dl></div></div>
+  ${batchMatrix(c)}
+  <div class="panel">
+    <div class="panel-h"><h2>Poll responses${inBatch(c) ? ': ' + esc(c.portfolio.name) : ''}</h2>
+      <div class="btnrow">${live ? `<button class="btn sm" data-act="add-bid" ${isHR() ? '' : 'disabled'}>Add response</button><button class="btn sm" data-act="import-file" ${isHR() ? '' : 'disabled'}>Import poll export (.csv)</button><button class="btn sm" data-act="import-sample" ${isHR() ? '' : 'disabled'}>Load sample export</button>` : ''}</div>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Bidder</th><th>Role</th><th>${term('Ceiling', tipOf('Ceiling'))}</th><th>${term('CSM Index', tipOf('CSM Index'))}</th><th>${term('ASM Index', tipOf('CSM Index'))}</th><th>${term('Bid amount', tipOf('Bid amount'))}</th><th>Submitted</th><th>Eligibility</th></tr></thead>
+      <tbody>${c.bids.map(x => `<tr>
+        <td><b style="font-weight:500">${esc(x.name)}</b>${alsoBid(c, x)}</td><td>${x.role}</td>
+        <td class="num">${x.ceiling == null ? MISS() : lakh(x.ceiling)}</td>
+        <td class="num">${x.role === 'CSM' ? (x.csmIndex == null ? MISS() : x.csmIndex.toFixed(2)) : '<span class="muted">n/a</span>'}</td>
+        <td class="num">${x.role === 'ASM' ? (x.asmIndex == null ? MISS() : x.asmIndex.toFixed(2)) : '<span class="muted">n/a</span>'}</td>
+        <td class="num"><b style="font-weight:600">${lakh(x.bid)}</b></td>
+        <td class="num">${fmtDT(x.submittedAt)}${x.submittedAt > b.closeAt ? ' <span class="pill warn">Late</span>' : ''}</td>
+        <td><select data-elig="${x.id}" aria-label="Eligibility for ${esc(x.name)}" ${isHR() ? '' : 'disabled'}><option value="null" ${x.eligible == null ? 'selected' : ''}>Unreviewed</option><option value="true" ${x.eligible === true ? 'selected' : ''}>Eligible</option><option value="false" ${x.eligible === false ? 'selected' : ''}>Not eligible</option></select></td>
+      </tr>`).join('') || `<tr><td colspan="8" class="empty">No responses yet. Import the poll export or add responses by hand.</td></tr>`}</tbody>
+    </table></div>
+  </div>
+  <p class="note">Eligibility criteria and ceiling / index calculations are open items. Eligibility is set by hand for now.${inBatch(c) ? ' A batch poll export needs a "portfolio" column so each bid lands on the right resignation.' : ''}</p>
+  </div>`;
+}
+function alsoBid(c, b){
+  if (!inBatch(c)) return '';
+  const others = members(c.batchId).filter(x => x.id !== c.id && x.bids.some(y => y.name === b.name)).map(x => x.portfolio.name);
+  return others.length ? `<div class="muted" style="font-size:11.5px">Also bid: ${esc(others.join(', '))}</div>` : '';
+}
+
+function sortedBids(c){
+  const k = S.sort.key, dir = S.sort.dir, arr = [...c.bids];
+  if (!k) return arr;
+  const val = b => k === 'name' ? b.name : k === 'index' ? idxOf(b) : b[k];
+  return arr.sort((a, b) => { const x = val(a), y = val(b); if (x == null) return 1; if (y == null) return -1; return (x > y ? 1 : x < y ? -1 : 0) * dir; });
+}
+function compareTab(c){
+  if (!c.bids.length) return `<div class="panel"><div class="empty">No bids to compare yet.</div></div>`;
+  const miss = caseMissing(c), sens = sensitive();
+  const sh = (k, l) => `<th><button data-act="sort" data-k="${k}">${l}${S.sort.key === k ? (S.sort.dir > 0 ? ' ↑' : ' ↓') : ''}</button></th>`;
+  const editable = isHR() && c.stage >= 2 && c.stage <= 4;
+  return `<div class="stack">
+  ${miss ? `<div class="banner"><span><b>${miss} data points missing.</b> They are shown as missing, never as zero. Fill them from PAPIP records and previous takeover emails before sending the pack.</span></div>` : '<div class="banner ok">All comparison fields are filled for every bidder.</div>'}
+  ${!sens ? '<div class="banner info">PAPIP and takeover performance are restricted to HR and the approver.</div>' : ''}
+  <div class="panel">
+    <div class="panel-h"><h2>Bid comparison${inBatch(c) ? ': ' + esc(c.portfolio.name) : ''}</h2><div class="btnrow">${inBatch(c) ? `<span class="muted" style="font-size:12.5px">Other portfolios in ${c.batchId}:</span>${members(c.batchId).filter(x => x.id !== c.id).map(x => `<button class="chip" data-act="open-case" data-id="${x.id}" data-t="compare">${esc(x.portfolio.name)}</button>`).join('')}` : ''}<button class="btn sm" data-act="copy-bids">Copy as CSV</button></div></div>
+    <div class="tablewrap"><table>
+      <thead><tr>${sh('name','Bidder')}<th>Role</th>${sh('bid','Bid')}${sh('ceiling','Ceiling')}${sh('index','Index')}<th>${term('PAPIP', tipOf('PAPIP'))}</th><th>Previous takeovers and email evidence</th><th>${term('Trend', tipOf('Trend'))}</th><th>${term('Data', tipOf('⚠ Missing'))}</th>${editable ? '<th></th>' : ''}</tr></thead>
+      <tbody>${sortedBids(c).map(b => {
+        const m = missingOf(b), sel = c.decision?.bidderId === b.id;
+        return `<tr>
+        <td><b style="font-weight:500">${esc(b.name)}</b>${alsoBid(c, b)}${sel ? '<div><span class="pill ok">Selected by Sakshi</span></div>' : ''}${b.eligible === false ? '<div><span class="pill mute">Not eligible</span></div>' : ''}</td>
+        <td>${b.role}</td>
+        <td class="num"><b style="font-weight:600">${lakh(b.bid)}</b></td>
+        <td class="num">${b.ceiling == null ? MISS() : lakh(b.ceiling)}</td>
+        <td class="num">${idxOf(b) == null ? MISS() : `${idxOf(b).toFixed(2)} <span class="muted" style="font-size:11px">${b.role}</span>`}</td>
+        <td>${!sens ? RESTRICT : b.papip == null ? MISS() : `<span class="pill ${b.papip.status === 'Active' ? 'crit' : b.papip.status === 'Closed' ? 'mute' : 'ok'}">${esc(b.papip.status)}</span><span class="subj">${esc(b.papip.detail)}</span>`}</td>
+        <td>${!sens ? RESTRICT : b.prev == null ? MISS() : !b.prev.length ? '<span class="muted">No prior takeovers</span>' : b.prev.map(p => `<span class="subj"><span class="mono">${esc(p.caseId)}</span> <span class="trend ${p.trend}">${arrow(p.trend)}</span><br><a href="#" data-act="noop">“${esc(p.subject)}”</a></span>`).join('')}</td>
+        <td>${!sens ? RESTRICT : b.prev && !b.prev.length ? '<span class="muted">n/a</span>' : b.trend == null ? MISS() : `<span class="trend ${b.trend}">${arrow(b.trend)} ${cap(b.trend)}</span>`}</td>
+        <td>${m.length ? `<span class="miss" title="${esc(m.join(', '))}">⚠ ${m.length}</span>` : '<span class="pill ok">Complete</span>'}</td>
+        ${editable ? `<td><button class="btn sm" data-act="edit-bid" data-id="${b.id}">Edit</button></td>` : ''}
+      </tr>`;}).join('')}</tbody>
+    </table></div>
+  </div>
+  <p class="note">The dashboard does not rank bidders or suggest a winner. Sorting is for reading only. Sakshi makes the final selection.</p>
+  </div>`;
+}
+const arrow = t => t === 'up' ? '▲' : t === 'down' ? '▼' : t === 'stable' ? '▬' : '';
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
+const bidLine = b => `Bid ${lakh(b.bid)} · Ceiling ${b.ceiling == null ? 'missing' : lakh(b.ceiling)} · Index ${idxOf(b) == null ? 'missing' : idxOf(b).toFixed(2)} · PAPIP ${b.papip?.status || 'missing'} · Trend ${b.prev && !b.prev.length ? 'no prior' : b.trend || 'missing'}`;
+
+function approvalTab(c){
+  const packs = c.packs.length ? `<ul class="list">${[...c.packs].reverse().map(p => `<li><span class="when">${fmtDT(p.at)}</span><div><b style="font-weight:500">Approval pack v${p.v}</b>${p.batch ? ` <span class="pill batchp mono">${p.batch}</span>` : ''}<div class="muted" style="font-size:12.5px">${p.batch ? `Combined pack for ${members(p.batch).length} portfolios · ` : ''}${p.bidders} bidders here · ${p.missing ? p.missing + ' data points missing' : 'complete data'} · sent by ${esc(p.by)}</div></div></li>`).join('')}</ul>` : '<p class="muted" style="margin:0">No pack sent yet.</p>';
+  const g = group(c);
+  let decision;
+  if (c.decision){
+    const b = c.bids.find(x => x.id === c.decision.bidderId);
+    const sib = inBatch(c) ? members(c.batchId).filter(x => x.id !== c.id && x.decision) : [];
+    decision = `<dl class="kv" style="margin:0">
+      <div><dt>Selected CSM</dt><dd><b>${esc(b?.name || c.incoming)}</b> (${b?.role || ''})</dd></div>
+      <div><dt>Approver</dt><dd>${esc(c.decision.by)}</dd></div>
+      <div><dt>Decided</dt><dd class="num">${fmtDT(c.decision.at)}</dd></div>
+      <div style="grid-column:1/-1"><dt>Remarks</dt><dd>${esc(c.decision.remarks) || '<span class="muted">None</span>'}</dd></div>
+      ${sib.length ? `<div style="grid-column:1/-1"><dt>Same decision, rest of ${c.batchId}</dt><dd>${sib.map(x => `<div>${esc(x.portfolio.name)} → <b style="font-weight:500">${esc(x.incoming)}</b></div>`).join('')}</dd></div>` : ''}</dl>`;
+  } else if (c.stage === 4 && S.role === 'approver' && !RO){
+    decision = `<form id="decide-form" class="stack decide">
+      <p class="note">${g.length > 1 ? `Choose an incoming CSM for each of the ${g.length} portfolios in ${c.batchId}. ` : 'Choose the incoming CSM. '}Nothing is pre-selected.</p>
+      ${g.map(x => `<fieldset><legend>${esc(x.portfolio.name)} <span class="muted" style="font-weight:400">(${esc(x.outgoing.name)}, ${x.portfolio.accounts} accounts)</span></legend>
+        ${x.bids.filter(b => b.eligible !== false).map(b => `<label><input type="radio" name="pick-${x.id}" value="${b.id}" data-name="${esc(b.name)}"><span><b style="font-weight:500">${esc(b.name)}</b> <span class="muted">${b.role}</span><br><span class="muted num" style="font-size:12.5px">${bidLine(b)}</span></span></label>`).join('') || '<p class="muted" style="margin:0">No eligible bidders.</p>'}
+      </fieldset>`).join('')}
+      <div id="dup-warn"></div>
+      <div class="field"><label for="remarks">Remarks</label><textarea id="remarks" rows="3" placeholder="Reason for the selection"></textarea></div>
+      <div class="btnrow"><button class="btn primary" type="submit">Record decision${g.length > 1 ? ' for all ' + g.length : ''}</button><span class="note" id="decide-err"></span></div>
+    </form>`;
+  } else if (c.stage === 4){
+    decision = `<p style="margin:0">Waiting for Sakshi. Pack sent ${rel(c.packs.at(-1).at)}.${g.length > 1 ? ` She will allocate all ${g.length} portfolios in ${c.batchId} together.` : ''}</p><p class="note" style="margin-top:6px">In this prototype, switch "Viewing as" to Sakshi to record the decision.</p>`;
+  } else decision = '<p class="muted" style="margin:0">The decision is recorded after the pack is sent.</p>';
+  return `<div class="two">
+    <div class="panel"><div class="panel-h"><h2>Allocation decision</h2>${c.decision ? '<span class="pill ok">Decided</span>' : c.stage === 4 ? '<span class="pill warn">Decision pending</span>' : ''}</div><div class="panel-b">${decision}</div></div>
+    <div class="panel"><div class="panel-h"><h2>Packs sent for review</h2></div><div class="panel-b">${packs}</div></div>
+  </div>`;
+}
+
+function handoverTab(c){
+  if (!c.target) return `<div class="panel"><div class="empty">${c.incoming ? `Prepare the revised target email for ${esc(c.incoming)} to start handover.<br><br><button class="btn primary" data-act="prep-target" ${isHR() ? '' : 'disabled'}>Prepare target email</button>` : 'Handover starts after Sakshi selects the incoming CSM.'}</div></div>`;
+  const t = c.target, done = c.tasks.filter(x => x.status === 'done').length, blocked = c.tasks.filter(x => x.status === 'blocked');
+  const checks = closureChecks(c);
+  const canClose = checks.every(x => x[1]) && c.stage === 7 && isHR();
+  return `<div class="two">
+  <div class="stack">
+    <div class="panel"><div class="panel-h"><h2>Handover tasks</h2><span class="muted num">${done}/${c.tasks.length} done</span></div>
+      <div class="panel-b" style="padding-block:4px">
+        ${c.tasks.map(x => `<div class="task ${x.status}">
+          <input type="checkbox" data-task="${x.id}" ${x.status === 'done' ? 'checked' : ''} ${isHR() && c.stage === 7 ? '' : 'disabled'} aria-label="Mark ${esc(x.title)} done">
+          <div><div class="t">${esc(x.title)}</div><div class="muted" style="font-size:12.5px">${esc(x.owner)} · due ${fmtD(x.due)}</div>
+          ${x.status === 'blocked' ? `<div style="font-size:12.5px;color:var(--crit);margin-top:3px">Blocked: ${esc(x.blocker)}</div>` : ''}</div>
+          <div>${x.status !== 'done' && isHR() && c.stage === 7 ? `<button class="btn sm" data-act="task-block" data-id="${x.id}">${x.status === 'blocked' ? 'Unblock' : 'Mark blocked'}</button>` : ''}</div>
+        </div>`).join('')}
+      </div>
+      ${isHR() && c.stage === 7 ? `<div class="panel-b" style="border-top:1px solid var(--line)"><form id="task-form" class="btnrow"><input type="text" id="task-title" placeholder="New task" style="flex:2 1 180px" required><input type="text" id="task-owner" placeholder="Owner" style="flex:1 1 120px" required><button class="btn sm" type="submit">Add task</button></form></div>` : ''}
+    </div>
+  </div>
+  <div class="stack">
+    <div class="panel"><div class="panel-h"><h2>Revised target</h2>${t.ackAt ? '<span class="pill ok">Acknowledged</span>' : '<span class="pill warn">Awaiting ack</span>'}</div>
+      <div class="panel-b"><dl class="kv" style="margin:0;grid-template-columns:1fr 1fr">
+        <div><dt>Incoming CSM</dt><dd>${esc(c.incoming)}</dd></div>
+        <div><dt>Revised target</dt><dd class="num"><b>${lakh(t.amount)}</b>/qtr</dd></div>
+        <div><dt>Breakdown</dt><dd class="num" style="font-size:12.5px">${lakh(t.previous)} current + ${lakh(t.added)} from portfolio</dd></div>
+        <div><dt>Period</dt><dd>${esc(t.period)}</dd></div>
+        <div><dt>Sent</dt><dd class="num">${fmtDT(t.sentAt)} <span class="mono muted">${esc(t.thread)}</span></dd></div>
+        <div><dt>Acknowledged</dt><dd class="num">${t.ackAt ? fmtDT(t.ackAt) : `<button class="btn sm" data-act="ack-target" ${isHR() ? '' : 'disabled'}>Record ack</button>`}</dd></div>
+      </dl></div></div>
+    <div class="panel"><div class="panel-h"><h2>Closure checkpoints</h2></div>
+      <div class="panel-b">${checks.map(([l, ok]) => `<div class="check"><span class="ic ${ok ? 'y' : 'n'}">${ok ? '✓' : ''}</span><span class="${ok ? '' : 'muted'}">${l}</span></div>`).join('')}
+        ${c.stage === 7 ? `<div class="btnrow" style="margin-top:12px"><button class="btn primary" data-act="close-case" ${canClose ? '' : 'disabled'}>Mark case completed</button></div>${!canClose ? '<p class="note" style="margin-top:6px">Completes only after every checkpoint is confirmed.</p>' : ''}` : c.stage === 8 ? `<p class="note" style="margin-top:8px">Closed ${fmtDT(c.closedAt)}.</p>` : ''}
+        ${blocked.length ? `<p class="note" style="margin-top:8px;color:var(--crit)">${blocked.length} blocked task${blocked.length > 1 ? 's' : ''}.</p>` : ''}
+      </div></div>
+  </div></div>`;
+}
+const closureChecks = c => [
+  ['Target email sent and acknowledged', !!c.target?.ackAt],
+  ['All handover tasks done', c.tasks.length > 0 && c.tasks.every(t => t.status === 'done')],
+  ['No open blockers', !c.tasks.some(t => t.status === 'blocked')],
+  ['Handover completion email logged', c.comms.some(m => m.template === 'Handover completion') || c.stage === 8]
+];
+
+function commsTable(list, showCase){
+  return `<div class="tablewrap"><table><thead><tr><th>Sent</th>${showCase ? '<th>Case</th>' : ''}<th>Template</th><th>Subject</th><th>Recipients</th><th>Thread</th><th>Attachments</th></tr></thead>
+  <tbody>${list.map(m => `<tr ${showCase ? `class="click" data-act="open-case" data-id="${m.caseId}" data-t="comms"` : ''}><td class="num" style="white-space:nowrap">${fmtDT(m.at)}</td>${showCase ? `<td class="mono">${(m.caseIds || [m.caseId]).join('<br>')}</td>` : ''}<td>${esc(m.template)}</td><td style="min-width:240px">${esc(m.subject)}</td><td>${esc(m.to)}</td><td class="mono">${esc(m.thread)}</td><td>${m.attachments.length ? m.attachments.map(a => `<div style="font-size:12.5px">${esc(a)}</div>`).join('') : '<span class="muted">None</span>'}</td></tr>`).join('') || `<tr><td colspan="7" class="empty">No emails logged yet.</td></tr>`}</tbody></table></div>`;
+}
+function commsTab(c){
+  return `<div class="panel"><div class="panel-h"><h2>Communication log</h2><button class="btn sm" data-act="log-email" ${isHR() ? '' : 'disabled'}>Log an email</button></div>${commsTable([...c.comms].sort((a, b) => b.at - a.at), false)}</div>
+  <p class="note" style="margin-top:10px">Phase 1 logs emails by hand. Outlook threading and templated sending come in phase 2.${inBatch(c) ? ' Batch emails appear on every case in the batch with the same thread.' : ''}</p>`;
+}
+function activityTab(c){
+  return `<div class="panel"><div class="panel-h"><h2>Activity log</h2><span class="muted" style="font-size:12px">Append-only. Entries cannot be edited or removed.</span></div><div class="panel-b" style="padding-block:4px"><ul class="list">${[...c.log].sort((a, b) => b.at - a.at).map(l => `<li><span class="when">${fmtDT(l.at)}</span><div>${esc(l.text)}<div class="muted" style="font-size:12px">${esc(l.by)}</div></div></li>`).join('')}</ul></div></div>`;
+}
+
+function approvalsView(){
+  const pend = S.cases.filter(c => c.stage === 4 && !c.exception), units = [];
+  pend.forEach(c => { const k = c.batchId || c.id; if (!units.some(u => u.k === k)) units.push({k, cases:pend.filter(x => (x.batchId || x.id) === k)}); });
+  const decided = S.cases.filter(c => c.decision).sort((a, b) => b.decision.at - a.decision.at);
+  return `<div class="topline"><div><h1>Approval queue</h1><p class="sub">Packs waiting for Sakshi's allocation decision. A batch is one pack and one decision.</p></div></div>
+  <div class="panel"><div class="panel-h"><h2>Pending</h2><span class="muted">${units.length}</span></div><div class="tablewrap"><table>
+    <thead><tr><th>Takeover</th><th>Outgoing CSMs</th><th>Portfolios</th><th>Bidders</th><th>Pack</th><th>Waiting</th><th></th></tr></thead>
+    <tbody>${units.map(u => { const c = u.cases[0], p = c.packs.at(-1); return `<tr class="click" data-act="open-case" data-id="${c.id}" data-t="approval"><td>${u.cases.length > 1 ? `<span class="pill batchp mono">${u.k}</span>` : `<span class="mono">${c.id}</span>`}</td><td>${u.cases.map(x => esc(x.outgoing.name)).join('<br>')}</td><td>${u.cases.map(x => esc(x.portfolio.name)).join('<br>')}</td><td class="num">${u.cases.map(x => x.bids.length).join('<br>')}</td><td>v${p.v} · ${fmtDT(p.at)}</td><td>${rel(p.at).replace(' ago', '')}</td><td><span class="linkbtn">${S.role === 'approver' ? 'Review and decide →' : 'Open →'}</span></td></tr>`; }).join('') || '<tr><td colspan="7" class="empty">Nothing waiting for a decision.</td></tr>'}</tbody></table></div></div>
+  <div class="panel"><div class="panel-h"><h2>Recent decisions</h2></div><div class="tablewrap"><table>
+    <thead><tr><th>Case</th><th>Portfolio</th><th>Selected CSM</th><th>Decided</th><th>Remarks</th></tr></thead>
+    <tbody>${decided.map(c => `<tr class="click" data-act="open-case" data-id="${c.id}" data-t="approval"><td class="mono">${c.id}${c.batchId ? `<div class="muted" style="font-size:11px">${c.batchId}</div>` : ''}</td><td>${esc(c.portfolio.name)}</td><td>${esc(c.incoming)}</td><td class="num">${fmtDT(c.decision.at)}</td><td class="muted">${esc(c.decision.remarks)}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">No decisions yet.</td></tr>'}</tbody></table></div></div>`;
+}
+function commsView(){
+  // batch emails are stored on each member case with the same thread; list them once
+  const map = new Map();
+  S.cases.forEach(c => c.comms.forEach(m => { const k = m.thread + '|' + m.subject + '|' + m.at; if (map.has(k)) map.get(k).caseIds.push(c.id); else map.set(k, {...m, caseId:c.id, caseIds:[c.id]}); }));
+  const list = [...map.values()].sort((a, b) => b.at - a.at);
+  return `<div class="topline"><div><h1>Communication log</h1><p class="sub">Every bid, approval, target and handover email across cases. Batch emails are listed once with all their cases.</p></div></div><div class="panel">${commsTable(list, true)}</div>`;
+}
+function activityView(){
+  const list = S.cases.flatMap(c => c.log.map(l => ({...l, caseId:c.id}))).sort((a, b) => b.at - a.at).slice(0, 80);
+  return `<div class="topline"><div><h1>Activity log</h1><p class="sub">Append-only record of every change, newest first.</p></div></div>
+  <div class="panel"><div class="panel-b" style="padding-block:4px"><ul class="list">${list.map(l => `<li><span class="when">${fmtDT(l.at)}</span><div><button class="linkbtn mono" data-act="open-case" data-id="${l.caseId}" data-t="activity">${l.caseId}</button> ${esc(l.text)}<div class="muted" style="font-size:12px">${esc(l.by)}</div></div></li>`).join('')}</ul></div></div>`;
+}
+
+/* ---------- modal + toast ---------- */
+function modal(title, body, foot, onMount){
+  closeModal();
+  const el = document.createElement('div');
+  el.className = 'scrim'; el.id = 'scrim';
+  el.innerHTML = `<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-h"><h2>${esc(title)}</h2><button class="btn sm" data-act="close-modal" aria-label="Close">✕</button></div><div class="modal-b">${body}</div><div class="modal-f">${foot}</div></div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click', e => { if (e.target === el) closeModal(); });
+  onMount && onMount(el);
+  const f = el.querySelector('input,select,textarea'); f && f.focus();
+}
+function closeModal(){ document.getElementById('scrim')?.remove(); }
+let tt;
+function toast(msg){ document.querySelector('.toast')?.remove(); const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = msg; document.body.appendChild(t); clearTimeout(tt); tt = setTimeout(() => t.remove(), 2800); }
+const commit = msg => { savePrefs(); persist(); render(); if (msg) toast(msg); };
+const val = id => document.getElementById(id)?.value?.trim() ?? '';
+const toDate = s => s ? new Date(s + 'T12:00').getTime() : null;
+const isoDate = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; };
+const err = (id, msg) => { document.getElementById(id).innerHTML = `<span style="color:var(--crit)">${msg}</span>`; };
+
+/* ---------- actions ---------- */
+const PMS_PENDING = [
+  {pms:'PMS-RES-88031', name:'Harsh Vardhan', emp:'EMP-11602', designation:'CSM', port:'Travel & Aviation', accts:17, target:55, mgr:'Sonal Bhatia', days:0},
+  {pms:'PMS-RES-88032', name:'Rakesh Yadav', emp:'EMP-09955', designation:'Senior CSM', port:'Agri & FMCG', accts:19, target:60, mgr:'Amit Khurana', days:0.3},
+  {pms:'PMS-RES-88033', name:'Kunal Shah', emp:'EMP-10764', designation:'Associate CSM', port:'Real Estate & Infra', accts:10, target:38, mgr:'Sonal Bhatia', days:0.6},
+  {pms:'PMS-RES-88034', name:'Isha Kulkarni', emp:'EMP-11871', designation:'CSM', port:'SMB Central', accts:26, target:42, mgr:'Amit Khurana', days:1}
+];
+const ACT = {
+  nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); },
+  'emp-refresh': () => loadEmployees(true),
+  'open-case': d => { S.view = 'case'; S.caseId = d.id; S.tab = d.t || S.tab || 'bids'; S.sort = {key:null, dir:1}; render(); window.scrollTo(0, 0); },
+  tab: d => { S.tab = d.t; render(); },
+  'clear-f': () => { S.q = ''; S.stageF = 'all'; S.flagF = 'all'; render(); },
+  sort: d => { S.sort = S.sort.key === d.k ? {key:d.k, dir:-S.sort.dir} : {key:d.k, dir:1}; render(); },
+  'close-modal': closeModal,
+  guide: () => { S.guide = S.guide === false; commit(S.guide ? '' : 'Guide hidden. Open it again from "How it works" in the menu.'); },
+  help: () => modal('How a takeover works', `<p style="margin:0">When a CSM resigns, their portfolio moves to a new CSM in these 5 steps. Open any case to see its current step and what to do next.</p>${guideHTML(true)}`, '<button class="btn primary" data-act="close-modal">Got it</button>'),
+  'show-guide': () => { S.guide = true; closeModal(); commit(); },
+  noop: () => toast('Opens the linked Outlook thread once email integration is connected'),
+  reset: () => modal('Reset demo data', shared() ? '<p style="margin:0">This deletes every case, including ones people have added, and restores the original demo cases <b>for everyone</b> who uses this link. It cannot be undone.</p>' : '<p style="margin:0">This restores the original demo cases in this copy.</p>', `<button class="btn" data-act="close-modal">Keep current data</button><button class="btn danger" data-act="do-reset">${shared() ? 'Reset for everyone' : 'Reset'}</button>`),
+  'do-reset': async () => {
+    const fresh = seed(); closeModal();
+    if (shared()) {
+      if (RO) return;
+      toast('Restoring demo data…');
+      for (const col of ['cases', 'batches']) for (const x of S[col]) {
+        if (fresh[col].some(y => y.id === x.id)) continue;
+        try { await DB.doc(col + '/' + x.id).delete(); delete lastJ[col][x.id]; } catch(e) { writeFailed(e); return; }
+      }
+    }
+    Object.assign(S, fresh); S.view = 'cases'; S.caseId = null; commit('Demo data restored');
+  },
+  'load-demo': () => { Object.assign(S, seed()); S.view = 'cases'; commit('Demo cases loaded'); },
+
+  'new-case': () => {
+    const pending = PMS_PENDING.filter(p => !S.cases.some(c => c.pms === p.pms));
+    const joinable = [];
+    S.batches.forEach(b => { const m = members(b.id).filter(x => !x.exception); if (m.length && m.every(x => x.stage === 0)) joinable.push({v:'batch:' + b.id, l:`Join batch ${b.id} (${m.map(x => x.outgoing.name).join(', ')})`}); });
+    S.cases.filter(c => !c.batchId && c.stage === 0 && !c.exception).forEach(c => joinable.push({v:'case:' + c.id, l:`Join ${c.id} (${c.outgoing.name}) and start a batch`}));
+    modal('New takeover', `
+      <div class="banner info"><span>Select every resignation that came in together. Two or more selected start <b>one takeover batch</b>: one bid email, one 24-hour window, one approval pack. You can also add them to a takeover whose bidding hasn't opened yet.</span></div>
+      <div class="field"><label>Pending resignations in PMS (sync simulated)</label>
+        <div class="stack" style="gap:6px">${pending.map(p => `<label class="pick"><input type="checkbox" data-pms="${p.pms}" checked><span><b style="font-weight:500">${esc(p.name)}</b> <span class="muted mono">${p.pms}</span><br><span class="muted" style="font-size:12.5px">${esc(p.designation)} · ${esc(p.port)} · ${p.accts} accounts · ${lakh(p.target)}/qtr · resigned ${fmtD(Date.now() - p.days*D)}</span></span></label>`).join('') || '<p class="note">No pending resignations in PMS.</p>'}</div>
+      </div>
+      <details><summary>Enter a resignation by hand</summary>
+        <div class="grid2">
+          <div class="field"><label for="nc-pms">PMS reference</label><input type="text" id="nc-pms"></div>
+          <div class="field"><label for="nc-name">Resigned CSM</label><input type="text" id="nc-name"></div>
+          <div class="field"><label for="nc-emp">Employee code</label><input type="text" id="nc-emp"></div>
+          <div class="field"><label for="nc-desig">Designation</label><input type="text" id="nc-desig" placeholder="e.g. Senior CSM"></div>
+          <div class="field"><label for="nc-port">Portfolio</label><input type="text" id="nc-port"></div>
+          <div class="field"><label for="nc-target">Quarterly target (₹ L)</label><input type="number" id="nc-target" step="0.1" min="0"></div>
+          <div class="field"><label for="nc-res">Resignation date</label><input type="date" id="nc-res" value="${isoDate(Date.now())}"></div>
+          <div class="field"><label for="nc-lwd">Last working day</label><input type="date" id="nc-lwd" value="${isoDate(Date.now() + 45*D)}"></div>
+        </div>
+      </details>
+      <div class="field"><label for="nc-join">Takeover</label><select id="nc-join"><option value="new">Start a new takeover</option>${joinable.map(j => `<option value="${j.v}">${esc(j.l)}</option>`).join('')}</select></div>
+      <p class="note" id="nc-sum"></p><p class="note" id="nc-err"></p>`,
+      '<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="create-case">Create takeover</button>', el => {
+        const sum = () => {
+          const n = el.querySelectorAll('[data-pms]:checked').length + (el.querySelector('#nc-name').value.trim() ? 1 : 0), j = el.querySelector('#nc-join').value;
+          el.querySelector('#nc-sum').textContent = n === 0 ? '' : j !== 'new' ? `${n} resignation${n > 1 ? 's' : ''} will join the selected takeover and run with it.` : n > 1 ? `${n} resignations will start together as one new batch.` : '1 resignation will start a single takeover.';
+        };
+        el.addEventListener('input', sum); el.addEventListener('change', sum); sum();
+      });
+  },
+  'create-case': () => {
+    const picked = [...document.querySelectorAll('[data-pms]:checked')].map(i => PMS_PENDING.find(p => p.pms === i.dataset.pms)).map(p => ({...p, resign:Date.now() - p.days*D, lwd:Date.now() + 45*D}));
+    if (val('nc-name')) {
+      if (!val('nc-pms') || !val('nc-port')) { err('nc-err', 'For a manual entry, add the PMS reference, outgoing CSM and portfolio.'); return; }
+      picked.push({pms:val('nc-pms'), name:val('nc-name'), emp:val('nc-emp'), designation:val('nc-desig'), port:val('nc-port'), target:val('nc-target') === '' ? null : +val('nc-target'), resign:toDate(val('nc-res')), lwd:toDate(val('nc-lwd'))});
+    }
+    if (!picked.length) { err('nc-err', 'Select at least one resignation or enter one by hand.'); return; }
+    const join = val('nc-join'), n = Date.now();
+    let max = Math.max(...S.cases.map(c => +c.id.slice(-3)));
+    const created = picked.map(f => { const c = blankCase('TKO-2026-' + String(++max).padStart(3, '0'), f, who(), n); log(c, 'Case created from PMS resignation update ' + c.pms); return c; });
+    let batchId = null, together = created;
+    if (join.startsWith('batch:')) { batchId = join.slice(6); together = [...members(batchId), ...created]; }
+    else if (join.startsWith('case:')) { const host = S.cases.find(c => c.id === join.slice(5)); batchId = newBatchId(); S.batches.push({id:batchId, createdAt:n, by:who()}); host.batchId = batchId; log(host, `Added to takeover batch ${batchId}`); together = [host, ...created]; }
+    else if (created.length > 1) { batchId = newBatchId(); S.batches.push({id:batchId, createdAt:n, by:who()}); }
+    if (batchId) created.forEach(c => { c.batchId = batchId; log(c, `Added to takeover batch ${batchId} with ${together.filter(x => x !== c).map(x => x.outgoing.name).join(', ')}`); });
+    S.cases.unshift(...created); S.view = 'case'; S.caseId = created[0].id; S.tab = 'bids'; closeModal();
+    commit(batchId ? `${together.length} resignations now run together in ${batchId}` : `Case ${created[0].id} created`);
+  },
+
+  'gen-bid': () => {
+    const c = cur(), g = group(c), url = 'https://forms.office.com/r/' + (inBatch(c) ? c.batchId : c.id).toLowerCase(), close = Date.now() + 24*H;
+    const subj = g.length > 1 ? `Takeover bidding open: ${g.length} portfolios (${g.map(x => x.outgoing.name).join(', ')})` : `Takeover bidding open: ${c.portfolio.name} (${c.outgoing.name})`;
+    const lines = g.map((x, i) => `${g.length > 1 ? (i + 1) + '. ' : ''}${esc(x.portfolio.name)}: ${esc(x.outgoing.name)}'s portfolio, ${x.portfolio.accounts} accounts, LWD ${fmtD(x.lwd)}`).join('\n');
+    modal(g.length > 1 ? `Combined bid email: ${c.batchId}` : 'Bid-open email', `
+      <div class="banner">The approved template is still to be supplied. This draft follows the PRD fields.</div>
+      ${g.length > 1 ? `<div class="banner info">One email, one poll and one 24-hour window for all ${g.length} resignations in this batch. Bidders pick the portfolio(s) they want in the poll.</div>` : ''}
+      <div class="grid2">
+        <div class="field"><label for="bm-url">Poll link</label><input type="url" id="bm-url" value="${url}"></div>
+        <div class="field"><label for="bm-to">Recipients</label><select id="bm-to"><option>All CSMs and ASMs (46)</option><option>All CSMs only (38)</option></select></div>
+      </div>
+      <div class="mail">
+        <div class="row"><span>Subject</span><span>${esc(subj)}</span></div>
+        <div class="row"><span>Deadline</span><span class="num">${fmtDT(close)} (24 hours from sending)</span></div>
+        <div class="body">Hi all,
+
+${g.length > 1 ? `The following ${g.length} portfolios are open for takeover bidding together:` : 'The following portfolio is open for takeover bidding:'}
+${lines}
+
+Submit your bid through the poll${g.length > 1 ? '. You can bid on more than one portfolio' : ''}: <span style="color:var(--info)">${url}</span>
+
+Responses close on ${fmtDT(close)}. Late responses will be marked as late.
+
+Regards,
+${esc(who())}</div>
+      </div>
+      <p class="note">Assumes the 24-hour window starts at send time (proposed default, pending confirmation).</p>`,
+      `<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="send-bid">Mark as sent and open bidding${forAll(c)}</button>`);
+  },
+  'send-bid': () => {
+    const c = cur(), g = group(c), n = Date.now(), url = val('bm-url') || 'https://forms.office.com/r/' + c.id.toLowerCase(), th = thread();
+    const subj = g.length > 1 ? `Takeover bidding open: ${g.length} portfolios (${g.map(x => x.outgoing.name).join(', ')})` : `Takeover bidding open: ${c.portfolio.name} (${c.outgoing.name})`;
+    g.forEach(x => {
+      x.bid = {pollUrl:url, sentAt:n, openAt:n, closeAt:n + 24*H, closedAt:null};
+      x.comms.push({id:nid('m'), at:n, template:'Bid-open announcement (draft)', subject:subj, to:val('bm-to'), thread:th, attachments:['Portfolio summary.pdf']});
+      log(x, g.length > 1 ? `Combined bid-open email sent for batch ${x.batchId}. 24-hour window started.` : 'Bid-open email sent. 24-hour window started.');
+      setStage(x, 1);
+    });
+    closeModal(); commit(`Bidding is open${forAll(c, g.length)} until ${fmtDT(n + 24*H)}`);
+  },
+  'add-bid': () => {
+    const c = cur(), g = group(c);
+    modal('Add poll response', `
+      <div class="grid2">
+        <div class="field"><label for="ab-name">Bidder</label><select id="ab-name">${Object.entries(POOL).map(([k, p]) => `<option value="${k}">${p.name} (${p.role})</option>`).join('')}</select></div>
+        <div class="field"><label for="ab-bid">Bid amount (₹ L)</label><input type="number" id="ab-bid" step="0.1" min="0"></div>
+        ${g.length > 1 ? `<div class="field" style="grid-column:1/-1"><label for="ab-case">Portfolio</label><select id="ab-case">${g.map(x => `<option value="${x.id}" ${x.id === c.id ? 'selected' : ''}>${esc(x.portfolio.name)} (${esc(x.outgoing.name)})</option>`).join('')}</select></div>` : ''}
+      </div>
+      <p class="note">Ceiling and index come from the poll export. Missing values stay flagged as missing.</p><p class="note" id="ab-err"></p>`,
+      '<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="save-bid">Add response</button>');
+  },
+  'save-bid': () => {
+    const c = S.cases.find(x => x.id === (val('ab-case') || S.caseId)), k = val('ab-name'), amt = val('ab-bid');
+    if (!amt) { err('ab-err', 'Enter the bid amount.'); return; }
+    if (c.bids.some(b => b.name === POOL[k].name)) { err('ab-err', POOL[k].name + ' has already bid on this portfolio.'); return; }
+    c.bids.push(mkBid(k, +amt, Date.now(), false, null));
+    log(c, `Poll response added by hand: ${POOL[k].name}, ${lakh(+amt)}`); closeModal(); commit(`Response added to ${c.portfolio.name}`);
+  },
+  'import-file': () => document.getElementById('pollfile').click(),
+  'import-sample': () => {
+    const c = cur(), g = group(c), keys = Object.keys(POOL); let total = 0;
+    g.forEach((x, gi) => {
+      const have = new Set(x.bids.map(b => b.name));
+      const add = keys.filter(k => !have.has(POOL[k].name)).slice(gi, gi + 2);
+      add.forEach((k, i) => x.bids.push(mkBid(k, Math.round((POOL[k].ceiling * 1.15 + i) * 10) / 10, Date.now() - (i + 1) * 40 * 6e4, false, null)));
+      x.attachments.push({name:`poll_export_${x.batchId || x.id}.csv`, at:Date.now(), by:who()});
+      log(x, `Poll export imported: ${add.length} new responses`); total += add.length;
+    });
+    commit(`${total} responses imported${forAll(c, g.length)}`);
+  },
+  'close-bid': () => {
+    const c = cur();
+    if (Date.now() < c.bid.closeAt) {
+      modal('Close bidding early?', `<p style="margin:0">The 24-hour window is still open until ${fmtDT(c.bid.closeAt)} (${rel(c.bid.closeAt)}). Closing now stops further responses${forAll(c)}.</p>`, '<button class="btn" data-act="close-modal">Keep open</button><button class="btn primary" data-act="do-close-bid">Close now</button>');
+    } else ACT['do-close-bid']();
+  },
+  'do-close-bid': () => { const c = cur(), g = group(c); g.forEach(x => { x.bid.closedAt = Date.now(); log(x, `Bidding closed with ${x.bids.length} responses`); setStage(x, 2); }); closeModal(); commit('Bidding closed' + forAll(c, g.length)); },
+  'start-compile': () => { const c = cur(), g = group(c); g.forEach(x => setStage(x, 3)); S.tab = 'compare'; commit('Data compilation started' + forAll(c, g.length)); },
+  'edit-bid': d => {
+    const c = cur(), b = c.bids.find(x => x.id === d.id);
+    const p = b.prev || [];
+    modal('Bidder data: ' + b.name, `
+      <div class="grid2">
+        <div class="field"><label for="eb-ceil">Ceiling (₹ L)</label><input type="number" id="eb-ceil" step="0.1" value="${b.ceiling ?? ''}" placeholder="Missing"></div>
+        <div class="field"><label for="eb-idx">${b.role} Index</label><input type="number" id="eb-idx" step="0.01" value="${idxOf(b) ?? ''}" placeholder="Missing"></div>
+        <div class="field"><label for="eb-papip">PAPIP status</label><select id="eb-papip"><option value="">Missing</option>${['None','Active','Closed'].map(s => `<option ${b.papip?.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
+        <div class="field"><label for="eb-papipd">PAPIP details</label><input type="text" id="eb-papipd" value="${esc(b.papip?.detail || '')}"></div>
+        <div class="field"><label for="eb-prevn">Previous takeovers</label><select id="eb-prevn"><option value="">Missing</option><option value="0" ${b.prev && !b.prev.length ? 'selected' : ''}>None</option><option value="1" ${p.length ? 'selected' : ''}>Has previous takeovers</option></select></div>
+        <div class="field"><label for="eb-trend">Overall trend</label><select id="eb-trend"><option value="">Missing</option>${['up','stable','down'].map(s => `<option value="${s}" ${b.trend === s ? 'selected' : ''}>${cap(s)}</option>`).join('')}</select></div>
+      </div>
+      <div class="field"><label for="eb-subj">Previous takeover email subjects (one per line)</label><textarea id="eb-subj" rows="3">${esc(p.map(x => x.subject).join('\n'))}</textarea></div>
+      <p class="note">Leave a field empty to keep it flagged as missing. Empty is never stored as zero.${inBatch(c) ? " The same details are copied to this bidder's other bids in the batch." : ''}</p>`,
+      `<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="save-enrich" data-id="${b.id}">Save</button>`);
+  },
+  'save-enrich': d => {
+    const c = cur(), b = c.bids.find(x => x.id === d.id), num = id => val(id) === '' ? null : +val(id);
+    b.ceiling = num('eb-ceil');
+    if (b.role === 'ASM') b.asmIndex = num('eb-idx'); else b.csmIndex = num('eb-idx');
+    b.papip = val('eb-papip') ? {status:val('eb-papip'), detail:val('eb-papipd') || '—'} : null;
+    const pn = val('eb-prevn'), subs = val('eb-subj').split('\n').map(s => s.trim()).filter(Boolean);
+    b.trend = val('eb-trend') || null;
+    b.prev = pn === '' ? null : pn === '0' ? [] : (subs.length ? subs : ['Subject not recorded']).map((s, i) => ({caseId:(b.prev || [])[i]?.caseId || 'TKO-prior', subject:s, trend:(b.prev || [])[i]?.trend || b.trend || 'stable'}));
+    // one person's history applies to every portfolio they bid on in the batch
+    if (inBatch(c)) members(c.batchId).forEach(x => x.bids.filter(y => y.name === b.name && y !== b).forEach(y => Object.assign(y, {ceiling:b.ceiling, csmIndex:b.csmIndex, asmIndex:b.asmIndex, papip:b.papip, prev:JSON.parse(JSON.stringify(b.prev)), trend:b.trend})));
+    log(c, `Bidder data updated: ${b.name} (${missingOf(b).length} fields still missing)`); closeModal(); commit('Saved');
+  },
+  'send-approval': () => {
+    const c = cur(), g = group(c), v = c.packs.length + 1, miss = g.reduce((n, x) => n + caseMissing(x), 0);
+    const subj = g.length > 1 ? `Takeover approval pack v${v}: batch ${c.batchId} (${g.length} portfolios)` : `Takeover approval pack v${v}: ${c.portfolio.name} (${c.outgoing.name})`;
+    modal(`Send approval pack v${v} to Sakshi`, `
+      ${miss ? `<div class="banner"><span><b>${miss} data points are missing.</b> They will appear as missing in the pack.</span></div>` : ''}
+      <div class="mail">
+        <div class="row"><span>To</span><span>Sakshi</span></div>
+        <div class="row"><span>Subject</span><span>${esc(subj)}</span></div>
+        <div class="row"><span>Attached</span><span>Bid comparison v${v}.xlsx${g.length > 1 ? ' (one sheet per portfolio)' : ''} · Poll export · Previous takeover trail</span></div>
+        <div class="body">Hi Sakshi,
+
+${g.length > 1 ? `${g.length} CSMs resigned together, so their takeovers are in one pack:\n${g.map((x, i) => `${i + 1}. ${esc(x.portfolio.name)} (${esc(x.outgoing.name)}, LWD ${fmtD(x.lwd)}): ${x.bids.length} bids`).join('\n')}` : `${c.bids.length} bids were received for ${esc(c.outgoing.name)}'s portfolio (LWD ${fmtD(c.lwd)}).`}
+
+The comparison covers bid amount, ceiling, CSM/ASM index, PAPIP status and previous takeover trends, with the supporting email threads.
+
+Please confirm the incoming CSM${g.length > 1 ? ' for each portfolio' : ''}.</div>
+      </div>
+      <p class="note">The approval email format and decision capture are open items.</p>`,
+      `<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="do-send-approval">Mark as sent</button>`);
+  },
+  'do-send-approval': () => {
+    const c = cur(), g = group(c), v = c.packs.length + 1, n = Date.now(), th = thread();
+    const subj = g.length > 1 ? `Takeover approval pack v${v}: batch ${c.batchId} (${g.length} portfolios)` : `Takeover approval pack v${v}: ${c.portfolio.name} (${c.outgoing.name})`;
+    g.forEach(x => {
+      x.packs.push({v, at:n, by:who(), bidders:x.bids.length, missing:caseMissing(x), batch:g.length > 1 ? x.batchId : null});
+      x.comms.push({id:nid('m'), at:n, template:'Approval pack', subject:subj, to:'Sakshi', thread:th, attachments:[`Bid comparison v${v}.xlsx`, ...x.attachments.map(a => a.name)]});
+      log(x, g.length > 1 ? `Combined approval pack v${v} for batch ${x.batchId} sent to Sakshi` : `Approval pack v${v} sent to Sakshi`);
+      if (x.stage !== 4) setStage(x, 4); else x.stageAt[4] = n;
+    });
+    closeModal(); commit(`Pack v${v} sent to Sakshi${forAll(c, g.length)}`);
+  },
+  'prep-target': () => {
+    const c = cur(), b = c.bids.find(x => x.id === c.decision.bidderId), prev = b?.ceiling ?? 0, add = c.portfolio.target ?? 0;
+    const other = inBatch(c) ? members(c.batchId).filter(x => x.id !== c.id && x.incoming === c.incoming) : [];
+    modal('Revised target email', `
+      <div class="banner">The target calculation and email template are open items. Figures below are editable.</div>
+      ${other.length ? `<div class="banner info">${esc(c.incoming)} was also allocated ${esc(other.map(x => x.portfolio.name).join(', '))} in this batch. Check the combined target.</div>` : ''}
+      <div class="grid2">
+        <div class="field"><label for="tg-prev">${esc(c.incoming)}'s current target (₹ L)</label><input type="number" id="tg-prev" step="0.1" value="${prev}"></div>
+        <div class="field"><label for="tg-add">Added from portfolio (₹ L)</label><input type="number" id="tg-add" step="0.1" value="${add}"></div>
+        <div class="field"><label for="tg-amt">Revised target (₹ L / quarter)</label><input type="number" id="tg-amt" step="0.1" value="${(prev + add).toFixed(1)}"></div>
+        <div class="field"><label for="tg-period">Period</label><select id="tg-period"><option>Q3 FY27 (Oct to Dec 2026)</option><option>Q4 FY27 (Jan to Mar 2027)</option></select></div>
+      </div>
+      <div class="mail"><div class="row"><span>To</span><span>${esc(c.incoming)}; cc ${esc(c.manager)}</span></div><div class="row"><span>Subject</span><span>Portfolio allocation and revised target: ${esc(c.portfolio.name)}</span></div></div>`,
+      '<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="send-target">Mark as sent</button>', el => {
+        const sync = () => { el.querySelector('#tg-amt').value = ((+el.querySelector('#tg-prev').value || 0) + (+el.querySelector('#tg-add').value || 0)).toFixed(1); };
+        el.querySelector('#tg-prev').addEventListener('input', sync); el.querySelector('#tg-add').addEventListener('input', sync);
+      });
+  },
+  'send-target': () => {
+    const c = cur(), n = Date.now(), th = thread();
+    c.target = {amount:+val('tg-amt'), previous:+val('tg-prev'), added:+val('tg-add'), period:val('tg-period'), sentAt:n, thread:th, ackAt:null};
+    c.comms.push({id:nid('m'), at:n, template:'Revised target (draft)', subject:`Portfolio allocation and revised target: ${c.portfolio.name}`, to:`${c.incoming}; cc ${c.manager}`, thread:th, attachments:['Account list.xlsx']});
+    log(c, `Revised target email sent to ${c.incoming} (${lakh(c.target.amount)}, ${c.target.period})`);
+    c.tasks = defaultTasks(c, n);
+    setStage(c, 6); closeModal(); commit('Target email logged');
+  },
+  'ack-target': () => { const c = cur(); c.target.ackAt = Date.now(); log(c, `Target email acknowledged by ${c.incoming}`); commit('Acknowledgement recorded'); },
+  'start-handover': () => { const c = cur(); setStage(c, 7); S.tab = 'handover'; commit('Handover started'); },
+  'task-block': d => {
+    const c = cur(), t = c.tasks.find(x => x.id === d.id);
+    if (t.status === 'blocked') { t.status = 'todo'; t.blocker = ''; log(c, 'Task unblocked: ' + t.title); commit('Unblocked'); return; }
+    modal('Mark task blocked', `<div class="field"><label for="bl-why">What is blocking "${esc(t.title)}"?</label><input type="text" id="bl-why"></div>`, `<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="do-block" data-id="${t.id}">Mark blocked</button>`);
+  },
+  'do-block': d => { const c = cur(), t = c.tasks.find(x => x.id === d.id); t.status = 'blocked'; t.blocker = val('bl-why') || 'Reason not given'; log(c, `Task blocked: ${t.title} (${t.blocker})`); closeModal(); commit('Marked blocked'); },
+  'close-case': () => {
+    const c = cur(), n = Date.now();
+    c.comms.push({id:nid('m'), at:n, template:'Handover completion', subject:`Takeover completed: ${c.portfolio.name}`, to:`${c.incoming}; ${c.outgoing.name}; ${c.manager}`, thread:thread(), attachments:[]});
+    c.closedAt = n; log(c, 'Case closed. All handover checkpoints confirmed.'); setStage(c, 8); commit('Case completed');
+  },
+  'log-email': () => {
+    modal('Log an email', `
+      <div class="field"><label for="le-subj">Subject</label><input type="text" id="le-subj"></div>
+      <div class="grid2">
+        <div class="field"><label for="le-tpl">Type</label><select id="le-tpl"><option>Handover follow-up</option><option>Handover completion</option><option>Reminder</option><option>Escalation</option><option>Other</option></select></div>
+        <div class="field"><label for="le-thread">Outlook thread / link</label><input type="text" id="le-thread" placeholder="OL-00000"></div>
+      </div>
+      <div class="field"><label for="le-to">Recipients</label><input type="text" id="le-to"></div>
+      <div class="field"><label for="le-att">Attachments (comma separated)</label><input type="text" id="le-att"></div><p class="note" id="le-err"></p>`,
+      '<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="save-email">Log email</button>');
+  },
+  'save-email': () => {
+    if (!val('le-subj') || !val('le-to')) { err('le-err', 'Add a subject and recipients.'); return; }
+    const c = cur();
+    c.comms.push({id:nid('m'), at:Date.now(), template:val('le-tpl'), subject:val('le-subj'), to:val('le-to'), thread:val('le-thread') || '—', attachments:val('le-att') ? val('le-att').split(',').map(s => s.trim()).filter(Boolean) : []});
+    log(c, `Email logged: ${val('le-subj')}`); closeModal(); commit('Email logged');
+  },
+  hold: () => modal('Put case on hold', `<div class="field"><label for="h-why">Reason</label><input type="text" id="h-why" placeholder="e.g. Resignation withdrawal under discussion"></div>${inBatch(cur()) && cur().stage <= SHARED_UPTO ? '<p class="note">The rest of the batch carries on without this case.</p>' : ''}`, '<button class="btn" data-act="close-modal">Cancel</button><button class="btn primary" data-act="do-hold" data-x="On Hold">Put on hold</button>'),
+  cancel: () => modal('Cancel case', '<div class="field"><label for="h-why">Reason</label><input type="text" id="h-why" placeholder="e.g. Resignation withdrawn"></div><p class="note">The case and its audit trail are kept.</p>', '<button class="btn" data-act="close-modal">Keep case</button><button class="btn danger" data-act="do-hold" data-x="Cancelled">Cancel case</button>'),
+  'do-hold': d => { const c = cur(); c.exception = d.x; c.holdReason = val('h-why') || 'No reason given'; log(c, `Case ${d.x === 'Cancelled' ? 'cancelled' : 'put on hold'}: ${c.holdReason}`); closeModal(); commit(d.x === 'Cancelled' ? 'Case cancelled' : 'Case on hold'); },
+  resume: () => { const c = cur(); c.exception = null; log(c, 'Case resumed'); commit('Case resumed'); },
+  'copy-list': () => copyCSV([['Case','Batch','PMS ref','Outgoing CSM','Portfolio','Resigned','LWD','Stage','Owner','Next due','Incoming CSM'],
+    ...S.cases.map(c => [c.id, c.batchId || '', c.pms, c.outgoing.name, c.portfolio.name, fmtD(c.resignDate), fmtD(c.lwd), c.exception || STAGES[c.stage], c.owner, fmtDT(dueOf(c)), c.incoming || ''])]),
+  'copy-bids': () => { const c = cur(), s = sensitive(); copyCSV([['Portfolio','Bidder','Role','Bid (L)','Ceiling (L)','Index','PAPIP','Previous takeovers','Trend','Missing'],
+    ...c.bids.map(b => [c.portfolio.name, b.name, b.role, b.bid, b.ceiling ?? 'MISSING', idxOf(b) ?? 'MISSING', !s ? 'Restricted' : b.papip?.status ?? 'MISSING', !s ? 'Restricted' : b.prev == null ? 'MISSING' : b.prev.map(p => p.subject).join(' | ') || 'None', !s ? 'Restricted' : b.trend ?? (b.prev && !b.prev.length ? 'n/a' : 'MISSING'), missingOf(b).join('; ')])]); }
+};
+function copyCSV(rows){
+  const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const fallback = () => modal('Copy CSV', `<p class="note">Select all and copy.</p><textarea id="csv-out" rows="10" readonly>${esc(csv)}</textarea>`, '<button class="btn" data-act="close-modal">Done</button>', el => el.querySelector('#csv-out').select());
+  try { navigator.clipboard.writeText(csv).then(() => toast(`Copied ${rows.length - 1} rows as CSV`), fallback); } catch(e) { fallback(); }
+}
+function dupWarn(){
+  const box = document.getElementById('dup-warn'); if (!box) return;
+  const count = {};
+  document.querySelectorAll('#decide-form input[type=radio]:checked').forEach(r => count[r.dataset.name] = (count[r.dataset.name] || 0) + 1);
+  const dup = Object.entries(count).filter(([, n]) => n > 1);
+  box.innerHTML = dup.length ? `<div class="banner"><span>${dup.map(([nm, n]) => `<b>${esc(nm)}</b> is selected for ${n} portfolios. That is allowed. Check their capacity before recording.`).join('<br>')}</span></div>` : '';
+}
+
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-act]'); if (!t || t.disabled) return;
+  if (t.tagName === 'A') e.preventDefault();
+  const f = ACT[t.dataset.act]; if (f) f(t.dataset);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-act]')) { e.preventDefault(); ACT['open-case'](e.target.dataset); }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q' || e.target.id === 'empq') {
+    const id = e.target.id; if (id === 'q') S.q = e.target.value; else EMP.q = e.target.value;
+    const pos = e.target.selectionStart; render(); const q = document.getElementById(id); q.focus(); q.setSelectionRange(pos, pos);
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.id === 'role-select') { S.role = t.value; commit('Viewing as ' + ROLES[S.role].label); }
+  else if (t.id === 'stageF') { S.stageF = t.value; render(); }
+  else if (t.id === 'flagF') { S.flagF = t.value; render(); }
+  else if (t.id === 'empDept') { EMP.dept = t.value; render(); }
+  else if (t.closest('#decide-form')) dupWarn();
+  else if (t.dataset.elig) { const c = cur(), b = c.bids.find(x => x.id === t.dataset.elig); b.eligible = JSON.parse(t.value); log(c, `Eligibility for ${b.name} set to ${b.eligible == null ? 'unreviewed' : b.eligible ? 'eligible' : 'not eligible'}`); commit(); }
+  else if (t.dataset.task) { const c = cur(), k = c.tasks.find(x => x.id === t.dataset.task); k.status = t.checked ? 'done' : 'todo'; if (t.checked) k.blocker = ''; log(c, `Task ${t.checked ? 'completed' : 'reopened'}: ${k.title}`); commit(); }
+  else if (t.id === 'pollfile' && t.files[0]) {
+    const file = t.files[0], r = new FileReader();
+    r.onload = () => {
+      const c = cur(), g = group(c), lines = String(r.result).split(/\r?\n/).filter(l => l.trim());
+      const hdr = lines.shift().split(',').map(h => h.trim().toLowerCase());
+      const col = n => hdr.findIndex(h => h.includes(n));
+      const ci = {name:col('name'), role:col('role'), ceil:col('ceil'), idx:col('index'), bid:col('bid'), at:col('submit'), port:col('portfolio')};
+      if (ci.name < 0 || ci.bid < 0) { toast('The file needs at least "name" and "bid" columns'); return; }
+      let added = 0;
+      lines.forEach(l => {
+        const v = l.split(',').map(s => s.trim()), num = i => i < 0 || v[i] === '' || v[i] == null ? null : +v[i];
+        // in a batch export, the portfolio column says which resignation the bid is for
+        const target = ci.port >= 0 && g.length > 1 ? g.find(x => x.portfolio.name.toLowerCase() === (v[ci.port] || '').toLowerCase() || x.id === v[ci.port]) : c;
+        if (!target) return;
+        const role = (v[ci.role] || 'CSM').toUpperCase().includes('ASM') ? 'ASM' : 'CSM';
+        target.bids.push({id:nid('b'), name:v[ci.name], role, ceiling:num(ci.ceil), csmIndex:role === 'CSM' ? num(ci.idx) : null, asmIndex:role === 'ASM' ? num(ci.idx) : null, bid:num(ci.bid), submittedAt:ci.at >= 0 && Date.parse(v[ci.at]) ? Date.parse(v[ci.at]) : Date.now(), eligible:null, papip:null, prev:null, trend:null});
+        added++;
+      });
+      g.forEach(x => { x.attachments.push({name:file.name, at:Date.now(), by:who()}); log(x, `Poll export imported from ${file.name}`); });
+      commit(added + ' responses imported');
+    };
+    r.readAsText(file); t.value = '';
+  }
+});
+document.addEventListener('submit', e => {
+  e.preventDefault();
+  if (e.target.id === 'decide-form') {
+    const c = cur(), g = group(c), picks = g.map(x => ({x, r:e.target.querySelector(`input[name="pick-${x.id}"]:checked`)}));
+    const missing = picks.filter(p => !p.r);
+    if (missing.length) { err('decide-err', g.length > 1 ? `Select a CSM for: ${missing.map(p => esc(p.x.portfolio.name)).join(', ')}.` : 'Select a bidder first.'); return; }
+    const n = Date.now(), remarks = val('remarks');
+    picks.forEach(({x, r}) => {
+      const b = x.bids.find(y => y.id === r.value);
+      x.decision = {by:who(), bidderId:b.id, at:n, remarks}; x.incoming = b.name;
+      log(x, `Selected ${b.name} as incoming CSM${g.length > 1 ? ` (batch decision for ${x.batchId})` : ''}`); setStage(x, 5);
+    });
+    commit(g.length > 1 ? `All ${g.length} portfolios allocated` : picks[0].x.incoming + ' recorded as incoming CSM');
+  }
+  if (e.target.id === 'task-form') {
+    const c = cur(); c.tasks.push({id:nid('t'), title:val('task-title'), owner:val('task-owner'), due:c.lwd, status:'todo', blocker:''});
+    log(c, 'Task added: ' + val('task-title')); commit('Task added');
+  }
+});
+setInterval(() => { if (!document.getElementById('scrim') && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) render(); }, 60000);
+render();
+boot();
+</script>
