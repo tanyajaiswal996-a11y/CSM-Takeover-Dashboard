@@ -19,12 +19,12 @@ On first start the server loads demo data (10 cases, 2 batches) into `data/db.js
 The **Employee master** page lists employees from the PMS "Get Employee Details" API, showing the Sales team by default.
 
 1. Copy `.env.example` to `.env`.
-2. Fill in the username, password, role and API key you were given.
+2. Fill in the username, password, role and API key for both APIs: Get Employee Details (`KITES_*`) and Get Employee Code by Email (`KITES_CODE_*`).
 3. Restart the server.
 
-The server logs in to get an access token and device token, then calls the employee API. Only name, department, designation, manager, email and joining/resignation dates are passed to the browser. Bank, address, phone and other personal fields stay on the server. Results are cached for 10 minutes; **Refresh from PMS** reloads them.
+For each API the server logs in to get an access token and device token, then calls it. The employee details API has no employee code, so each employee's official email is looked up in the code-by-email API (5 at a time). Codes found are saved in `data/employee-codes.json`, so later loads only look up new emails.
 
-The API response does not include an employee code yet, so codes show as "Not in API" until `emp_code` is added to the response.
+Only code, name, department, designation, manager, email and joining/resignation dates are passed to the browser. Bank, address, phone and other personal fields stay on the server. Results are cached for 10 minutes; **Refresh from PMS** reloads them.
 
 ## Reset the demo data
 

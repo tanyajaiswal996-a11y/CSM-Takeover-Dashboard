@@ -79,10 +79,10 @@ async function handleEmployees(req, res, url) {
   if (req.method !== 'GET') return send(res, 405, { error: 'Method not allowed' });
   if (!kites.configured()) return send(res, 503, { error: 'The employee API is not set up. Add the KITES_* settings to the .env file.' });
   try {
-    const { at, employees } = await kites.getEmployees({ refresh: url.searchParams.get('refresh') === '1' });
+    const { at, employees, codeError } = await kites.getEmployees({ refresh: url.searchParams.get('refresh') === '1' });
     const dept = (url.searchParams.get('department') || '').trim().toLowerCase();
     const list = dept ? employees.filter(e => (e.department || '').toLowerCase() === dept) : employees;
-    send(res, 200, { fetchedAt: at, total: employees.length, count: list.length, employees: list });
+    send(res, 200, { fetchedAt: at, total: employees.length, count: list.length, codeError, employees: list });
   } catch (e) {
     console.error('Employee API:', e.message);
     send(res, 502, { error: 'Could not load employees from PMS. ' + e.message });

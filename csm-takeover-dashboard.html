@@ -617,7 +617,7 @@ async function loadEmployees(refresh){
     const r = await fetch('api/employees' + (refresh ? '?refresh=1' : ''), {cache:'no-store'});
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'The server could not load employees.');
-    EMP.all = j.employees || []; EMP.fetchedAt = j.fetchedAt; EMP.state = 'ok';
+    EMP.all = j.employees || []; EMP.fetchedAt = j.fetchedAt; EMP.codeError = j.codeError || ''; EMP.state = 'ok';
     if (refresh) toast(`Loaded ${EMP.all.length} employees from PMS`);
   } catch(e) { EMP.state = 'error'; EMP.err = e.message || 'Could not reach the server.'; }
   safeRender();
@@ -630,7 +630,7 @@ const empRows = () => {
 };
 const empDate = s => { if (!s) return ''; const t = Date.parse(s); return isNaN(t) ? esc(s) : fmtD(t); };
 function employeesView(){
-  const head = `<div class="topline"><div><h1>Employee master</h1><p class="sub">Live from the PMS employee API. Shows the Sales team by default.</p></div>
+  const head = `<div class="topline"><div><h1>Employee master</h1><p class="sub">Live from PMS. Employee codes are matched by official email. Shows the Sales team by default.</p></div>
     <div class="btnrow"><button class="btn" data-act="emp-refresh" ${EMP.state === 'loading' ? 'disabled' : ''}>Refresh from PMS</button></div></div>`;
   if (EMP.state === 'idle' || EMP.state === 'loading') return head + `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Loading employees from PMS…</h3><p>This can take a few seconds.</p></div></div>`;
   if (EMP.state === 'error') return head + `<div class="banner"><span><b>Could not load employees.</b> ${esc(EMP.err)} Check the internet connection and the KITES settings in the .env file, then try again.</span></div>`;
@@ -638,7 +638,7 @@ function employeesView(){
   EMP.all.forEach(e => { const d = e.department || 'No department'; depts[d] = (depts[d] || 0) + 1; });
   const rows = empRows(), noCode = rows.filter(e => !e.code).length, resigned = rows.filter(e => e.resignationDate).length;
   return head + `
-  ${noCode ? `<div class="banner"><span><b>The PMS API does not send employee codes yet.</b> ${noCode === rows.length ? 'None' : 'Some'} of these records include an <span class="mono">emp_code</span> field, so codes show as "Not in API". Ask the PMS team to add it to the Get Employee Details response. Codes will appear here automatically once they do.</span></div>` : ''}
+  ${EMP.codeError ? `<div class="banner"><span><b>Employee codes could not be loaded.</b> ${esc(EMP.codeError)} Names and other details are still shown.</span></div>` : noCode ? `<div class="banner info"><span>${noCode} ${noCode === 1 ? 'employee has' : 'employees have'} no code because the code lookup found no match for their official email. Check the email in PMS.</span></div>` : ''}
   <div class="panel">
     <div class="panel-h">
       <div class="filters" style="flex:1">
@@ -653,7 +653,7 @@ function employeesView(){
     <div class="tablewrap"><table>
       <thead><tr><th>Employee code</th><th>Name</th><th>Designation</th><th>Department</th><th>Manager</th><th>Status</th></tr></thead>
       <tbody>${rows.map(e => `<tr>
-        <td class="mono">${e.code ? esc(e.code) : '<span class="miss" title="The API response has no employee code field">Not in API</span>'}</td>
+        <td class="mono">${e.code ? esc(e.code) : '<span class="miss" title="No code was found for this official email">No code</span>'}</td>
         <td><b style="font-weight:500">${esc(e.name) || '<span class="muted">No name</span>'}</b></td>
         <td>${esc(e.designation) || '<span class="muted">—</span>'}</td>
         <td>${esc(e.department) || '<span class="muted">—</span>'}</td>
