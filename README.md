@@ -12,7 +12,7 @@ npm start
 
 Then open http://localhost:3000.
 
-On first start the server loads demo data (10 cases, 2 batches) into `data/db.json`. Every change you make in the dashboard is saved there.
+Takeover cases come from PMS: every employee in the Sales department with a resignation date becomes a case. The server checks PMS when it starts, and **Sync from PMS** on the case list checks again. Resignations dated within 3 days of each other start together as one batch. Existing cases are never changed or removed by a sync. Every change you make in the dashboard is saved in `data/db.json`.
 
 ## Employee Master (PMS API)
 
@@ -26,15 +26,15 @@ For each API the server logs in to get an access token and device token, then ca
 
 Only code, name, department, designation, manager, email and joining/resignation dates are passed to the browser. Bank, address, phone and other personal fields stay on the server. Results are cached for 10 minutes; **Refresh from PMS** reloads them.
 
-## Reset the demo data
+## Demo data
 
-Either click **Reset demo data** in the left panel, or stop the server and run:
+To show the dashboard with sample cases (for a presentation), stop the server and run:
 
 ```bash
-npm run reset
+npm run demo
 ```
 
-This replaces everything in `data/db.json` with fresh demo cases, and refreshes their dates and countdowns.
+This replaces `data/db.json` with 10 demo cases and 2 batches. The next `npm start` removes the demo cases (their codes start with EMP-) and goes back to PMS data.
 
 ## Options
 
@@ -46,15 +46,17 @@ This replaces everything in `data/db.json` with fresh demo cases, and refreshes 
 | File | What it is |
 | --- | --- |
 | `csm-takeover-dashboard.html` | The whole dashboard (UI, logic, demo data generator) |
-| `server.js` | Serves the page and a JSON API: `GET /api/cases`, `PUT /api/cases/<id>`, `DELETE /api/cases/<id>` (same for `batches`), and `GET /api/employees?department=Sales` |
-| `kites.js` | Client for the PMS employee API: login, employee list, removal of personal fields |
+| `server.js` | Serves the page and a JSON API: `GET /api/cases`, `PUT /api/cases/<id>`, `DELETE /api/cases/<id>` (same for `batches`), `GET /api/employees?department=Sales` and `POST /api/sync` (create cases from PMS resignations) |
+| `kites.js` | Clients for the PMS employee details and employee code APIs: login, employee list, code lookup by email, removal of personal fields |
 | `.env.example` | Template for the API settings. Copy to `.env` (not committed) |
-| `data/db.json` | Saved cases and batches. Delete it to start over with demo data |
+| `data/db.json` | Saved cases and batches. Delete it to start over from PMS |
+| `data/employee-codes.json` | Saved employee codes by official email |
 
 The same HTML file also runs as the published claude.ai version, where data is kept in the artifact's shared database instead.
 
 ## Not included yet
 
 - Logins and real roles. The "Viewing as" menu switches between HR, Sakshi and a CSM view for the demo.
-- Using Employee Master data when starting a takeover. "New takeover from PMS" still uses demo resignations.
+- Portfolio details (accounts and quarterly target) are not in PMS, so they show as "not in PMS".
+- The bidder list (who can bid and their ceiling, index and PAPIP) is still sample data.
 - Poll platform and Outlook integrations. These steps are simulated.

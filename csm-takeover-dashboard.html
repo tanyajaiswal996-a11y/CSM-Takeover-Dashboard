@@ -479,7 +479,7 @@ async function boot(){
     const local = await localDB();
     if (!local) { MODE = 'offline'; Object.assign(S, seed()); render(); return; }
     DB = local; MODE = 'local'; CAN_ADMIN = true;
-    if (S.view === 'employees') loadEmployees();
+    loadEmployees();
     DB.collection('cases').onSnapshot(s => applySnap('cases', s));
     DB.collection('batches').onSnapshot(s => applySnap('batches', s));
     render(); return;
@@ -534,6 +534,7 @@ function statusPill(c){
   if (c.stage === 8) return '<span class="pill ok">Completed</span>';
   return `<span class="pill">${STAGES[c.stage]}</span>`;
 }
+const portMeta = c => [c.portfolio.accounts != null ? c.portfolio.accounts + " accounts" : "accounts not in PMS", c.portfolio.target != null ? lakh(c.portfolio.target) + "/qtr" : "target not in PMS"].join(" · ");
 const fmtS = t => { if (t == null) return '—'; const d = new Date(t); return d.getFullYear() === new Date().getFullYear() ? `${d.getDate()} ${MON[d.getMonth()]}` : fmtD(t); };
 const term = (label, tip) => `<span class="tip" title="${esc(tip)}">${label}</span>`;
 
@@ -601,9 +602,9 @@ function render(){
         <span class="eyebrow">Viewing as</span>
         <select id="role-select" aria-label="Viewing as">${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === S.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select>
         <p>Switch to see the dashboard as each person would. HR runs the process, Sakshi approves, and CSMs get a limited view.</p>
-        <p><span class="demo" style="margin:0">Demo</span> All names and figures are sample data.</p>
+        ${MODE === 'local' ? '<p>Cases come from PMS resignations in the Sales team. The bidder list is still sample data.</p>' : '<p><span class="demo" style="margin:0">Demo</span> All names and figures are sample data.</p>'}
         <p>${syncLine()}</p>
-        ${(MODE === 'offline' || (CAN_ADMIN && !RO)) ? '<button class="linkbtn" data-act="reset">Reset demo data</button>' : ''}
+        ${(MODE === 'offline' || (MODE === 'live' && CAN_ADMIN && !RO)) ? '<button class="linkbtn" data-act="reset">Reset demo data</button>' : ''}
       </div>
     </aside>
     <main>${SYNC_ERR ? `<div class="banner"><span>${esc(SYNC_ERR)}</span></div>` : ''}${RO && MODE === 'live' ? '<div class="banner info"><span>You have view-only access. You can look around, but changes are not saved. Ask the owner for Contributor access to work on cases.</span></div>' : ''}${!ready() ? loadingView() : S.view === 'employees' && MODE === 'local' ? employeesView() : !S.cases.length ? emptyView() : S.view === 'case' && cur() ? caseView(cur()) : S.view === 'approvals' ? approvalsView() : S.view === 'comms' ? commsView() : S.view === 'activity' ? activityView() : casesView()}</main>
@@ -673,8 +674,8 @@ function syncLine(){
 const loadingView = () => `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Loading takeover cases…</h3><p>Fetching the shared data. This takes a moment.</p></div></div>`;
 const emptyView = () => `<div class="topline"><div><h1>Takeover cases</h1><p class="sub">No cases yet.</p></div></div>
   <div class="panel"><div class="empty"><h3 style="color:var(--ink)">There are no takeover cases yet</h3>
-  <p>Start a takeover from a PMS resignation, or load the demo cases to explore how the dashboard works.</p>
-  <div class="btnrow" style="justify-content:center">${isHR() ? '<button class="btn" data-act="load-demo">Load demo data</button><button class="btn primary" data-act="new-case">+ New takeover from PMS</button>' : '<span class="note">Ask HR to add the first case.</span>'}</div></div></div>`;
+  <p>${MODE === 'local' ? 'Cases are created from resignations in the PMS Sales team. PMS has no open Sales resignations right now. Sync again after one is recorded.' : 'Start a takeover from a PMS resignation, or load the demo cases to explore how the dashboard works.'}</p>
+  <div class="btnrow" style="justify-content:center">${!isHR() ? '<span class="note">Ask HR to add the first case.</span>' : MODE === 'local' ? '<button class="btn primary" data-act="pms-sync">Sync from PMS</button>' : '<button class="btn" data-act="load-demo">Load demo data</button><button class="btn primary" data-act="new-case">+ New takeover from PMS</button>'}</div></div></div>`;
 const navBtn = (v, label, n) => `<button data-act="nav" data-v="${v}" class="${S.view === v || (v === 'cases' && S.view === 'case') ? 'on' : ''}"><span>${label}</span>${n != null ? `<span class="count">${n}</span>` : ''}</button>`;
 
 function caseRow(c, isMember){
@@ -725,7 +726,7 @@ function casesView(){
   <div class="topline">
     <div><h1>Takeover cases</h1><p class="sub">Every CSM who has resigned, and how far their portfolio's handover to a new CSM has got.</p></div>
     <div class="btnrow">
-      <button class="btn" data-act="copy-list" title="Copy this list to paste into Excel">Copy as CSV</button>
+      ${MODE === 'local' && isHR() ? '<button class="btn" data-act="pms-sync" title="Add takeover cases for new resignations in the PMS Sales team">Sync from PMS</button>' : ''}<button class="btn" data-act="copy-list" title="Copy this list to paste into Excel">Copy as CSV</button>
       <button class="btn primary" data-act="new-case" ${isHR() ? 'title="Start a takeover for one or more new resignations"' : 'disabled title="Only HR can start a takeover"'}>+ New takeover from PMS</button>
     </div>
   </div>
@@ -779,7 +780,7 @@ function caseView(c){
         <span>Designation <b>${esc(c.outgoing.designation) || 'Not recorded'}</b></span>
         <span>Resigned <b>${fmtD(c.resignDate)}</b></span>
         <span>Last working day <b>${fmtD(c.lwd)}</b></span>
-        <span>Portfolio <b>${c.portfolio.accounts} accounts, ${lakh(c.portfolio.target)}/qtr</b></span>
+        <span>Portfolio <b>${portMeta(c)}</b></span>
         <span>Manager <b>${esc(c.manager)}</b></span>
         <span>Owner <b>${esc(c.owner)}</b></span>
       </div>
@@ -946,7 +947,7 @@ function approvalTab(c){
   } else if (c.stage === 4 && S.role === 'approver' && !RO){
     decision = `<form id="decide-form" class="stack decide">
       <p class="note">${g.length > 1 ? `Choose an incoming CSM for each of the ${g.length} portfolios in ${c.batchId}. ` : 'Choose the incoming CSM. '}Nothing is pre-selected.</p>
-      ${g.map(x => `<fieldset><legend>${esc(x.portfolio.name)} <span class="muted" style="font-weight:400">(${esc(x.outgoing.name)}, ${x.portfolio.accounts} accounts)</span></legend>
+      ${g.map(x => `<fieldset><legend>${esc(x.portfolio.name)} <span class="muted" style="font-weight:400">(${esc(x.outgoing.name)}, ${portMeta(x)})</span></legend>
         ${x.bids.filter(b => b.eligible !== false).map(b => `<label><input type="radio" name="pick-${x.id}" value="${b.id}" data-name="${esc(b.name)}"><span><b style="font-weight:500">${esc(b.name)}</b> <span class="muted">${b.role}</span><br><span class="muted num" style="font-size:12.5px">${bidLine(b)}</span></span></label>`).join('') || '<p class="muted" style="margin:0">No eligible bidders.</p>'}
       </fieldset>`).join('')}
       <div id="dup-warn"></div>
@@ -1063,6 +1064,13 @@ const isoDate = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d
 const err = (id, msg) => { document.getElementById(id).innerHTML = `<span style="color:var(--crit)">${msg}</span>`; };
 
 /* ---------- actions ---------- */
+// real resigned Sales employees from PMS in local mode; made-up ones elsewhere
+function pendingResignations(){
+  if (MODE !== 'local') return PMS_PENDING.filter(p => !S.cases.some(c => c.pms === p.pms));
+  const have = new Set(S.cases.map(c => c.outgoing.emp));
+  return EMP.all.filter(e => (e.department || '').toLowerCase() === 'sales' && e.resignationDate && e.code && !have.has(e.code))
+    .map(e => ({pms:'PMS ' + e.code, name:e.name || e.code, emp:e.code, designation:e.designation || '', port:(e.name || e.code) + "'s portfolio", accts:null, target:null, mgr:e.manager || '', resign:Date.parse(e.resignationDate) || Date.now(), lwd:Date.parse(e.lastWorkingDay) || null}));
+}
 const PMS_PENDING = [
   {pms:'PMS-RES-88031', name:'Harsh Vardhan', emp:'EMP-11602', designation:'CSM', port:'Travel & Aviation', accts:17, target:55, mgr:'Sonal Bhatia', days:0},
   {pms:'PMS-RES-88032', name:'Rakesh Yadav', emp:'EMP-09955', designation:'Senior CSM', port:'Agri & FMCG', accts:19, target:60, mgr:'Amit Khurana', days:0.3},
@@ -1072,6 +1080,14 @@ const PMS_PENDING = [
 const ACT = {
   nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); },
   'emp-refresh': () => loadEmployees(true),
+  'pms-sync': async () => {
+    toast('Checking PMS for new resignations…');
+    try {
+      const r = await fetch('api/sync', {method:'POST'}), j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Could not sync from PMS.');
+      toast(j.added ? `Added ${j.added} takeover case${j.added > 1 ? 's' : ''} from PMS. They appear in a few seconds.` : j.resigned ? `No new resignations. PMS has ${j.resigned} resigned in Sales, and ${j.resigned === 1 ? 'it is' : 'all are'} already listed.` : 'There are no resignations in the PMS Sales team right now.');
+    } catch(e) { toast(e.message || 'Could not reach the server.'); }
+  },
   'open-case': d => { S.view = 'case'; S.caseId = d.id; S.tab = d.t || S.tab || 'bids'; S.sort = {key:null, dir:1}; render(); window.scrollTo(0, 0); },
   tab: d => { S.tab = d.t; render(); },
   'clear-f': () => { S.q = ''; S.stageF = 'all'; S.flagF = 'all'; render(); },
@@ -1097,14 +1113,14 @@ const ACT = {
   'load-demo': () => { Object.assign(S, seed()); S.view = 'cases'; commit('Demo cases loaded'); },
 
   'new-case': () => {
-    const pending = PMS_PENDING.filter(p => !S.cases.some(c => c.pms === p.pms));
+    const pending = pendingResignations();
     const joinable = [];
     S.batches.forEach(b => { const m = members(b.id).filter(x => !x.exception); if (m.length && m.every(x => x.stage === 0)) joinable.push({v:'batch:' + b.id, l:`Join batch ${b.id} (${m.map(x => x.outgoing.name).join(', ')})`}); });
     S.cases.filter(c => !c.batchId && c.stage === 0 && !c.exception).forEach(c => joinable.push({v:'case:' + c.id, l:`Join ${c.id} (${c.outgoing.name}) and start a batch`}));
     modal('New takeover', `
       <div class="banner info"><span>Select every resignation that came in together. Two or more selected start <b>one takeover batch</b>: one bid email, one 24-hour window, one approval pack. You can also add them to a takeover whose bidding hasn't opened yet.</span></div>
-      <div class="field"><label>Pending resignations in PMS (sync simulated)</label>
-        <div class="stack" style="gap:6px">${pending.map(p => `<label class="pick"><input type="checkbox" data-pms="${p.pms}" checked><span><b style="font-weight:500">${esc(p.name)}</b> <span class="muted mono">${p.pms}</span><br><span class="muted" style="font-size:12.5px">${esc(p.designation)} · ${esc(p.port)} · ${p.accts} accounts · ${lakh(p.target)}/qtr · resigned ${fmtD(Date.now() - p.days*D)}</span></span></label>`).join('') || '<p class="note">No pending resignations in PMS.</p>'}</div>
+      <div class="field"><label>Pending resignations in PMS${MODE === 'local' ? ' (Sales team, live)' : ' (sync simulated)'}</label>
+        <div class="stack" style="gap:6px">${pending.map(p => `<label class="pick"><input type="checkbox" data-pms="${p.pms}" checked><span><b style="font-weight:500">${esc(p.name)}</b> <span class="muted mono">${p.pms}</span><br><span class="muted" style="font-size:12.5px">${[esc(p.designation), p.accts != null ? esc(p.port) + ' · ' + p.accts + ' accounts · ' + lakh(p.target) + '/qtr' : '', 'resigned ' + fmtD(p.resign ?? Date.now() - p.days*D), p.lwd ? 'last day ' + fmtD(p.lwd) : ''].filter(Boolean).join(' · ')}</span></span></label>`).join('') || '<p class="note">No pending resignations in PMS.</p>'}</div>
       </div>
       <details><summary>Enter a resignation by hand</summary>
         <div class="grid2">
@@ -1129,7 +1145,7 @@ const ACT = {
       });
   },
   'create-case': () => {
-    const picked = [...document.querySelectorAll('[data-pms]:checked')].map(i => PMS_PENDING.find(p => p.pms === i.dataset.pms)).map(p => ({...p, resign:Date.now() - p.days*D, lwd:Date.now() + 45*D}));
+    const picked = [...document.querySelectorAll('[data-pms]:checked')].map(i => pendingResignations().find(p => p.pms === i.dataset.pms)).filter(Boolean).map(p => 'resign' in p ? p : ({...p, resign:Date.now() - p.days*D, lwd:Date.now() + 45*D}));
     if (val('nc-name')) {
       if (!val('nc-pms') || !val('nc-port')) { err('nc-err', 'For a manual entry, add the PMS reference, outgoing CSM and portfolio.'); return; }
       picked.push({pms:val('nc-pms'), name:val('nc-name'), emp:val('nc-emp'), designation:val('nc-desig'), port:val('nc-port'), target:val('nc-target') === '' ? null : +val('nc-target'), resign:toDate(val('nc-res')), lwd:toDate(val('nc-lwd'))});
@@ -1150,7 +1166,7 @@ const ACT = {
   'gen-bid': () => {
     const c = cur(), g = group(c), url = 'https://forms.office.com/r/' + (inBatch(c) ? c.batchId : c.id).toLowerCase(), close = Date.now() + 24*H;
     const subj = g.length > 1 ? `Takeover bidding open: ${g.length} portfolios (${g.map(x => x.outgoing.name).join(', ')})` : `Takeover bidding open: ${c.portfolio.name} (${c.outgoing.name})`;
-    const lines = g.map((x, i) => `${g.length > 1 ? (i + 1) + '. ' : ''}${esc(x.portfolio.name)}: ${esc(x.outgoing.name)}'s portfolio, ${x.portfolio.accounts} accounts, LWD ${fmtD(x.lwd)}`).join('\n');
+    const lines = g.map((x, i) => `${g.length > 1 ? (i + 1) + '. ' : ''}${esc(x.portfolio.name)}: ${esc(x.outgoing.name)}'s portfolio, ${portMeta(x)}, last working day ${x.lwd ? fmtD(x.lwd) : "not set"}`).join('\n');
     modal(g.length > 1 ? `Combined bid email: ${c.batchId}` : 'Bid-open email', `
       <div class="banner">The approved template is still to be supplied. This draft follows the PRD fields.</div>
       ${g.length > 1 ? `<div class="banner info">One email, one poll and one 24-hour window for all ${g.length} resignations in this batch. Bidders pick the portfolio(s) they want in the poll.</div>` : ''}

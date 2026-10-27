@@ -2,11 +2,11 @@
   "name": "csm-takeover-dashboard",
   "version": "1.0.0",
   "private": true,
-  "description": "Local prototype of the CSM Takeover Dashboard with demo data",
+  "description": "Local CSM Takeover Dashboard using PMS employee data",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "reset": "node server.js --reset"
+    "demo": "node server.js --demo"
   },
   "engines": {
     "node": ">=18"

@@ -33,17 +33,78 @@ function buildSeed() {
   return db;
 }
 
+// Demo cases use made-up codes like EMP-11530; real PMS codes are numbers.
+const isDemoCase = c => /^EMP-/.test((c.outgoing && c.outgoing.emp) || '');
+
+// Default: real data only (demo cases are removed, PMS resignations are synced in).
+// `npm run demo` (--demo) loads the demo cases instead, for presentations.
 function loadDb() {
-  if (process.argv.includes('--reset') || !fs.existsSync(DB_FILE)) {
+  const demo = process.argv.includes('--demo');
+  if (demo) {
     const db = buildSeed();
     saveDb(db);
     console.log(`Loaded demo data: ${Object.keys(db.cases).length} cases, ${Object.keys(db.batches).length} batches`);
     return db;
   }
-  const db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  const db = fs.existsSync(DB_FILE) ? JSON.parse(fs.readFileSync(DB_FILE, 'utf8')) : {};
   for (const col of COLLECTIONS) db[col] = db[col] || {};
+  const demoIds = Object.values(db.cases).filter(isDemoCase).map(c => c.id);
+  if (demoIds.length) {
+    demoIds.forEach(id => delete db.cases[id]);
+    for (const b of Object.values(db.batches)) if (!Object.values(db.cases).some(c => c.batchId === b.id)) delete db.batches[b.id];
+    console.log(`Removed ${demoIds.length} demo cases`);
+  }
+  saveDb(db);
   return db;
 }
+
+// Resignations in PMS's Sales department become takeover cases. Existing cases
+// (matched by employee code) are never changed or removed. Resignations dated
+// within 3 days of each other start together as one batch.
+const BATCH_WINDOW_MS = 3 * 864e5;
+let syncing = null;
+async function syncFromPms() {
+  if (!kites.configured()) return { added: 0, resigned: 0, note: 'Employee API is not set up in .env' };
+  const { employees } = await kites.getEmployees();
+  const have = new Set(Object.values(db.cases).map(c => c.outgoing && c.outgoing.emp));
+  const resigned = employees.filter(e => (e.department || '').toLowerCase() === 'sales' && e.resignationDate);
+  const fresh = resigned.filter(e => e.code && !have.has(e.code))
+    .map(e => ({ e, resign: Date.parse(e.resignationDate) || Date.now(), lwd: Date.parse(e.lastWorkingDay) || null }))
+    .sort((a, b) => a.resign - b.resign);
+  if (!fresh.length) return { added: 0, resigned: resigned.length };
+
+  const now = Date.now(), year = new Date().getFullYear();
+  let seq = Math.max(0, ...Object.keys(db.cases).map(id => +(id.match(/-(\d+)$/) || [, 0])[1]));
+  let batchSeq = Math.max(0, ...Object.keys(db.batches).map(id => +(id.match(/-(\d+)$/) || [, 0])[1]));
+  const created = fresh.map(({ e, resign, lwd }) => {
+    const id = `TKO-${year}-${String(++seq).padStart(3, '0')}`;
+    return {
+      id, outgoing: { name: e.name || 'Name not in PMS', emp: e.code, designation: e.designation || '' },
+      pms: 'PMS ' + e.code, portfolio: { name: `${e.name || e.code}'s portfolio`, accounts: null, target: null },
+      manager: e.manager || '—', resignDate: resign, lwd, owner: 'HR', createdAt: now, stage: 0, stageAt: { 0: now },
+      exception: null, holdReason: '', batchId: null, bid: null, bids: [], packs: [], decision: null, incoming: null,
+      target: null, tasks: [], comms: [], attachments: [], closedAt: null, source: 'pms',
+      log: [{ at: now, by: 'PMS sync', text: `Case created from the PMS resignation of ${e.name || e.code} (employee code ${e.code})` }]
+    };
+  });
+  // group resignations that came in close together
+  let group = [];
+  const flush = () => {
+    if (group.length > 1) {
+      const bid = `BAT-${year}-${String(++batchSeq).padStart(2, '0')}`;
+      db.batches[bid] = { id: bid, createdAt: now, by: 'PMS sync' };
+      group.forEach(c => { c.batchId = bid; c.log.push({ at: now, by: 'PMS sync', text: `Added to takeover batch ${bid} with ${group.filter(x => x !== c).map(x => x.outgoing.name).join(', ')}` }); });
+    }
+    group = [];
+  };
+  created.forEach(c => { if (group.length && c.resignDate - group[0].resignDate > BATCH_WINDOW_MS) flush(); group.push(c); });
+  flush();
+  created.forEach(c => { db.cases[c.id] = c; });
+  saveDb(db);
+  console.log(`PMS sync: added ${created.length} case(s)`);
+  return { added: created.length, resigned: resigned.length };
+}
+const runSync = () => (syncing = syncing || syncFromPms().finally(() => { syncing = null; }));
 
 // Write to a temp file first so a crash mid-write never leaves a half-written db.json.
 function saveDb(db) {
@@ -92,6 +153,11 @@ async function handleEmployees(req, res, url) {
 async function handleApi(req, res, parts, url) {
   const [col, rawId] = parts;
   if (col === 'employees' && rawId === undefined) return handleEmployees(req, res, url);
+  if (col === 'sync' && rawId === undefined) {
+    if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
+    try { return send(res, 200, await runSync()); }
+    catch (e) { console.error('PMS sync:', e.message); return send(res, 502, { error: 'Could not sync from PMS. ' + e.message }); }
+  }
   if (!COLLECTIONS.includes(col)) return send(res, 404, { error: 'Unknown collection' });
 
   if (rawId === undefined) {
@@ -140,4 +206,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`CSM Takeover Dashboard running at http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
   console.log(`Data file: ${DB_FILE}`);
+  if (!process.argv.includes('--demo')) runSync().catch(e => console.error('PMS sync:', e.message));
 });
