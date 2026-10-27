@@ -478,7 +478,8 @@ async function boot(){
   const use = n => window.claude?.use ? window.claude.use(n).catch(() => null) : Promise.resolve(null);
   const [db, user] = await Promise.all([use('db'), use('user')]);
   if (!db) {
-    const local = await localDB();
+    // /demo always shows sample data, even for someone who also has the live link
+    const local = ['/demo', '/demo/'].includes(location.pathname) ? null : await localDB();
     if (!local) { MODE = 'offline'; Object.assign(S, seed()); render(); return; }
     DB = local; MODE = 'local'; CAN_ADMIN = true;
     loadEmployees();
