@@ -19,7 +19,7 @@ module.exports = async (req, res) => {
     secureCookies: true,
     routeParam: 'p',
     codeBudgetMs: 25000, // look up employee codes for at most 25 s per request; later requests continue
-    cacheMs: 60000       // re-read stored cases at most once a minute per running instance (free plan: 10k reads/month)
+    cacheMs: 5000        // re-read stored cases at most every 5 s per running instance
   });
   return app.handle(req, res);
 };
