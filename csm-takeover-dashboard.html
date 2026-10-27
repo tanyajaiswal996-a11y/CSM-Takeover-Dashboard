@@ -668,7 +668,7 @@ function employeesView(){
 function syncLine(){
   if (MODE === 'live') return RO ? '<span style="color:var(--info)">●</span> Shared data · view only' : '<span style="color:var(--ok)">●</span> Live · changes are saved and shared with everyone who opens this link';
   if (MODE === 'local') return '<span style="color:var(--ok)">●</span> Local server · changes are saved in data/db.json';
-  if (MODE === 'offline') return '<span style="color:var(--warn)">●</span> Offline copy · changes are not saved';
+  if (MODE === 'offline') return '<span style="color:var(--warn)">●</span> Demo copy · changes reset when the page is reloaded';
   return '<span class="muted">●</span> Connecting…';
 }
 const loadingView = () => `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Loading takeover cases…</h3><p>Fetching the shared data. This takes a moment.</p></div></div>`;
