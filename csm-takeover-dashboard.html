@@ -450,7 +450,6 @@ async function localDB(){
     localPending++;
     try {
       const r = await fetch(url, {method, headers:{'Content-Type':'application/json'}, body:body ? JSON.stringify(body) : undefined});
-      if (r.status === 401) { location.reload(); throw {code:'unavailable'}; }
       if (!r.ok) throw {code: r.status === 400 ? 'invalid_argument' : 'unavailable'};
     } catch(e) { throw e?.code ? e : {code:'unavailable'}; }
     finally { localPending--; }
@@ -463,10 +462,9 @@ async function localDB(){
         if (stop) return;
         if (!localPending) try {
           const r = await fetch('api/' + col, {cache:'no-store'}), txt = await r.text();
-          if (r.status === 401) { location.reload(); return; }
           if (r.ok && txt !== last && !localPending) { last = txt; next({docs: JSON.parse(txt).map(x => ({data: () => x}))}); }
         } catch(e) {}
-        setTimeout(tick, 5000);
+        setTimeout(tick, 3000);
       };
       tick();
       return () => { stop = true; };
@@ -606,7 +604,6 @@ function render(){
         <p>Switch to see the dashboard as each person would. HR runs the process, Sakshi approves, and CSMs get a limited view.</p>
         ${MODE === 'local' ? '<p>Cases come from PMS resignations in the Sales team. The bidder list is still sample data.</p>' : '<p><span class="demo" style="margin:0">Demo</span> All names and figures are sample data.</p>'}
         <p>${syncLine()}</p>
-        ${window.CTD_AUTH ? '<button class="linkbtn" data-act="sign-out">Sign out</button>' : ''}
         ${(MODE === 'offline' || (MODE === 'live' && CAN_ADMIN && !RO)) ? '<button class="linkbtn" data-act="reset">Reset demo data</button>' : ''}
       </div>
     </aside>
@@ -621,7 +618,7 @@ async function loadEmployees(refresh){
     const r = await fetch('api/employees' + (refresh ? '?refresh=1' : ''), {cache:'no-store'});
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || 'The server could not load employees.');
-    EMP.all = j.employees || []; EMP.fetchedAt = j.fetchedAt; EMP.codeError = j.codeError || ''; EMP.codesPending = j.codesPending || 0; EMP.state = 'ok';
+    EMP.all = j.employees || []; EMP.fetchedAt = j.fetchedAt; EMP.codeError = j.codeError || ''; EMP.state = 'ok';
     if (refresh) toast(`Loaded ${EMP.all.length} employees from PMS`);
   } catch(e) { EMP.state = 'error'; EMP.err = e.message || 'Could not reach the server.'; }
   safeRender();
@@ -642,8 +639,7 @@ function employeesView(){
   EMP.all.forEach(e => { const d = e.department || 'No department'; depts[d] = (depts[d] || 0) + 1; });
   const rows = empRows(), noCode = rows.filter(e => !e.code).length, resigned = rows.filter(e => e.resignationDate).length;
   return head + `
-  ${EMP.codesPending ? `<div class="banner info"><span>Employee codes are still being looked up for ${EMP.codesPending} employees. Click <b>Refresh from PMS</b> in a minute to load more.</span></div>` : ''}
-  ${EMP.codeError ? `<div class="banner"><span><b>Employee codes could not be loaded.</b> ${esc(EMP.codeError)} Names and other details are still shown.</span></div>` : noCode && !EMP.codesPending ? `<div class="banner info"><span>${noCode} ${noCode === 1 ? 'employee has' : 'employees have'} no code because the code lookup found no match for their official email. Check the email in PMS.</span></div>` : ''}
+  ${EMP.codeError ? `<div class="banner"><span><b>Employee codes could not be loaded.</b> ${esc(EMP.codeError)} Names and other details are still shown.</span></div>` : noCode ? `<div class="banner info"><span>${noCode} ${noCode === 1 ? 'employee has' : 'employees have'} no code because the code lookup found no match for their official email. Check the email in PMS.</span></div>` : ''}
   <div class="panel">
     <div class="panel-h">
       <div class="filters" style="flex:1">
@@ -671,7 +667,7 @@ function employeesView(){
 }
 function syncLine(){
   if (MODE === 'live') return RO ? '<span style="color:var(--info)">●</span> Shared data · view only' : '<span style="color:var(--ok)">●</span> Live · changes are saved and shared with everyone who opens this link';
-  if (MODE === 'local') return '<span style="color:var(--ok)">●</span> Live · changes are saved for everyone using this dashboard';
+  if (MODE === 'local') return '<span style="color:var(--ok)">●</span> Local server · changes are saved in data/db.json';
   if (MODE === 'offline') return '<span style="color:var(--warn)">●</span> Demo copy · changes reset when the page is reloaded';
   return '<span class="muted">●</span> Connecting…';
 }
@@ -1084,7 +1080,6 @@ const PMS_PENDING = [
 const ACT = {
   nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); },
   'emp-refresh': () => loadEmployees(true),
-  'sign-out': async () => { await fetch('api/logout', {method:'POST'}).catch(() => {}); location.reload(); },
   'pms-sync': async () => {
     toast('Checking PMS for new resignations…');
     try {

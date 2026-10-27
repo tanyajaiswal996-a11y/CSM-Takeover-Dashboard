@@ -1,20 +1,8 @@
-# CSM Takeover Dashboard
+# CSM Takeover Dashboard (local prototype)
 
 Tracks a CSM takeover from the PMS resignation through 24-hour bidding, Sakshi's decision, the revised target and handover. When several CSMs resign together, their takeovers run as one batch.
 
-## Online (Vercel)
-
-The dashboard runs at https://csm-takeover-dashboard.vercel.app behind one shared password. Every request goes through `api/index.js`; without a valid sign-in nothing but the sign-in page is returned. Cases and saved employee codes are kept in a **private** Vercel Blob store.
-
-One-time setup in the Vercel project:
-
-1. **Storage → Create → Blob**, choose **Private**, and connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`.
-2. **Settings → Environment Variables**: add every setting from `.env.example` with your values, including `DASHBOARD_PASSWORD`.
-3. **Deployments → Redeploy**.
-
-Until the password and Blob store are set up, the site only shows a "not set up yet" message. Changing `DASHBOARD_PASSWORD` (and redeploying) signs everyone out.
-
-## Run it on your computer
+## Run it
 
 Needs Node.js 18 or later. There is nothing to install.
 
@@ -58,11 +46,7 @@ This replaces `data/db.json` with 10 demo cases and 2 batches. The next `npm sta
 | File | What it is |
 | --- | --- |
 | `csm-takeover-dashboard.html` | The whole dashboard (UI, logic, demo data generator) |
-| `api/index.js` | Vercel entry point: checks the setup, then hands every request to `lib/app.js` |
-| `lib/app.js` | Request handling shared by Vercel and the local server: sign-in, cases, PMS sync, employees |
-| `lib/auth.js` | Shared-password sign-in with a signed, HttpOnly session cookie (7 days) |
-| `lib/storage.js` | Saves data to `data/` locally or to private Vercel Blob online |
-| `server.js` | Local server: `npm start` runs `lib/app.js` with data saved in `data/` |
+| `server.js` | Serves the page and a JSON API: `GET /api/cases`, `PUT /api/cases/<id>`, `DELETE /api/cases/<id>` (same for `batches`), `GET /api/employees?department=Sales` and `POST /api/sync` (create cases from PMS resignations) |
 | `kites.js` | Clients for the PMS employee details and employee code APIs: login, employee list, code lookup by email, removal of personal fields |
 | `.env.example` | Template for the API settings. Copy to `.env` (not committed) |
 | `data/db.json` | Saved cases and batches. Delete it to start over from PMS |

@@ -92,33 +92,25 @@ function toSafeEmployee(r) {
 const fetchEmployeesRaw = (empCode = '') => details.call({ emp_code: empCode });
 const fetchCodesRaw = (officialEmail = '') => codes.call({ OfficialEmail: officialEmail });
 
-// Codes found so far are saved (employee-codes.json in the app's storage), so later
-// loads only look up emails not seen before. Employee codes do not change.
-// `storage` is lib/storage.js; without one, codes are kept in memory only.
-const CODES_NAME = 'employee-codes.json';
-let memCodes = new Map();
-async function readCodeCache(storage) {
-  if (!storage) return new Map(memCodes);
-  try { return new Map(Object.entries((await storage.readJson(CODES_NAME)) || {})); } catch (e) { return new Map(memCodes); }
-}
-async function writeCodeCache(storage, map) {
-  memCodes = new Map(map);
-  if (storage) await storage.writeJson(CODES_NAME, Object.fromEntries(map));
+// Codes found so far, saved so a restart does not repeat hundreds of lookups.
+// Employee codes do not change, so a saved code is reused until "Refresh from PMS".
+const CODES_FILE = path.join(__dirname, 'data', 'employee-codes.json');
+function readCodeCache() { try { return new Map(Object.entries(JSON.parse(fs.readFileSync(CODES_FILE, 'utf8')))); } catch (e) { return new Map(); } }
+function writeCodeCache(map) {
+  fs.mkdirSync(path.dirname(CODES_FILE), { recursive: true });
+  fs.writeFileSync(CODES_FILE + '.tmp', JSON.stringify(Object.fromEntries(map), null, 2));
+  fs.renameSync(CODES_FILE + '.tmp', CODES_FILE);
 }
 
 // Map of lower-cased official email -> employee code. The API only answers one email
 // at a time (a blank email returns a few rows with no email to match on), so each
-// email not already saved is looked up, 5 at a time, until `budgetMs` runs out.
-// Whatever is found is saved; the rest is picked up on the next load.
-async function codesByEmail(emails, { storage, budgetMs = Infinity } = {}) {
-  const map = await readCodeCache(storage);
+// email not already saved is looked up, 5 at a time.
+async function codesByEmail(emails, { refresh = false } = {}) {
+  const map = refresh ? new Map() : readCodeCache();
   const todo = [...new Set(emails.map(emailKey).filter(k => k && !map.has(k)))];
-  const stopAt = Date.now() + budgetMs;
-  let failed = 0, tried = 0;
-  for (let i = 0; i < todo.length && Date.now() < stopAt; i += 5) {
-    const slice = todo.slice(i, i + 5);
-    tried += slice.length;
-    await Promise.all(slice.map(async e => {
+  let failed = 0;
+  for (let i = 0; i < todo.length; i += 5) {
+    await Promise.all(todo.slice(i, i + 5).map(async e => {
       try {
         const rows = await fetchCodesRaw(e);
         const hit = rows.find(r => emailKey(r.OfficialEmail) === e) || (rows.length === 1 ? rows[0] : null);
@@ -126,30 +118,24 @@ async function codesByEmail(emails, { storage, budgetMs = Infinity } = {}) {
       } catch (err) { failed++; }
     }));
   }
-  if (tried) await writeCodeCache(storage, map);
-  if (tried && failed === tried) throw new Error(`Every code lookup failed (${failed})`);
-  return { map, pending: todo.length - tried };
+  if (todo.length) writeCodeCache(map);
+  if (failed === todo.length && todo.length) throw new Error(`Every code lookup failed (${failed})`);
+  return map;
 }
 
-// Sales employees are looked up first: their codes are what takeover cases need.
-const salesFirst = list => [...list].sort((a, b) => ((b.department || '').toLowerCase() === 'sales') - ((a.department || '').toLowerCase() === 'sales'));
-
-let cache = null; // { at, employees, codeError, codesPending }
+let cache = null; // { at, employees, codeError }
 const CACHE_MS = 10 * 60 * 1000;
-async function getEmployees({ refresh = false, storage, budgetMs } = {}) {
-  if (!refresh && cache && !cache.codesPending && Date.now() - cache.at < CACHE_MS) return cache;
-  const employees = (!refresh && cache && Date.now() - cache.at < CACHE_MS)
-    ? cache.employees.map(e => ({ ...e }))
-    : (await fetchEmployeesRaw('')).map(toSafeEmployee);
-  let codeError = null, codesPending = 0;
+async function getEmployees({ refresh = false } = {}) {
+  if (!refresh && cache && Date.now() - cache.at < CACHE_MS) return cache;
+  const employees = (await fetchEmployeesRaw('')).map(toSafeEmployee);
+  let codeError = null;
   if (codes.configured()) {
     try {
-      const { map, pending } = await codesByEmail(salesFirst(employees).map(e => e.email), { storage, budgetMs });
+      const map = await codesByEmail(employees.map(e => e.email)); // saved codes are kept; only new emails are looked up
       employees.forEach(e => { if (!e.code) e.code = map.get(emailKey(e.email)) || null; });
-      codesPending = pending;
     } catch (e) { codeError = e.message; console.error('Employee code API:', e.message); }
-  } else codeError = 'The employee code API is not set up (KITES_CODE_* settings).';
-  cache = { at: cache && !refresh && Date.now() - cache.at < CACHE_MS ? cache.at : Date.now(), employees, codeError, codesPending };
+  } else codeError = 'The employee code API is not set up (KITES_CODE_* in .env).';
+  cache = { at: Date.now(), employees, codeError };
   return cache;
 }
 
