@@ -4,15 +4,16 @@ Tracks a CSM takeover from the PMS resignation through 24-hour bidding, Sakshi's
 
 ## Online (Vercel)
 
-The dashboard runs at https://csm-takeover-dashboard.vercel.app behind one shared password. Every request goes through `api/index.js`; without a valid sign-in nothing but the sign-in page is returned. Cases and saved employee codes are kept in a **private** Vercel Blob store.
+The live dashboard runs at https://csm-takeover-dashboard.vercel.app and opens only through a **private share link** (no login screen). The link looks like `https://csm-takeover-dashboard.vercel.app/#access=<code>`. Opening it once stores an access cookie for 30 days; without it the site shows only "This dashboard is private" and no data. The code sits after `#`, so it never appears in server logs.
 
-One-time setup in the Vercel project:
+Every request goes through `api/index.js`. Cases and saved employee codes are kept in a **private** Vercel Blob store.
 
-1. **Storage → Create → Blob**, choose **Private**, and connect it to the project. This adds `BLOB_READ_WRITE_TOKEN`.
-2. **Settings → Environment Variables**: add every setting from `.env.example` with your values, including `DASHBOARD_PASSWORD`.
-3. **Deployments → Redeploy**.
+One-time setup in the Vercel project (already done):
 
-Until the password and Blob store are set up, the site only shows a "not set up yet" message. Changing `DASHBOARD_PASSWORD` (and redeploying) signs everyone out.
+1. **Storage → Create → Blob**, **Private**, connected to the project.
+2. **Settings → Environment Variables → Import .env** with the `KITES_*` settings.
+
+The share-link code is derived from the PMS API password stored in Vercel. To get it on your computer, run `npm run link`. To change the link (for example if it was shared too widely), add `ACCESS_KEY` with any new long random text in Vercel and redeploy: the old link and all existing access stop working.
 
 ## Run it on your computer
 
@@ -60,7 +61,7 @@ This replaces `data/db.json` with 10 demo cases and 2 batches. The next `npm sta
 | `csm-takeover-dashboard.html` | The whole dashboard (UI, logic, demo data generator) |
 | `api/index.js` | Vercel entry point: checks the setup, then hands every request to `lib/app.js` |
 | `lib/app.js` | Request handling shared by Vercel and the local server: sign-in, cases, PMS sync, employees |
-| `lib/auth.js` | Shared-password sign-in with a signed, HttpOnly session cookie (7 days) |
+| `lib/auth.js` | Private share link: checks the link's code and sets a signed, HttpOnly access cookie (30 days) |
 | `lib/storage.js` | Saves data to `data/` locally or to private Vercel Blob online |
 | `server.js` | Local server: `npm start` runs `lib/app.js` with data saved in `data/` |
 | `kites.js` | Clients for the PMS employee details and employee code APIs: login, employee list, code lookup by email, removal of personal fields |

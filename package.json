@@ -6,7 +6,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "demo": "node server.js --demo"
+    "demo": "node server.js --demo",
+    "link": "node -e \"require('./kites');const a=require('./lib/auth');console.log(a.enabled()?'https://csm-takeover-dashboard.vercel.app/#access='+a.accessCode():'Set ACCESS_KEY or KITES_PASSWORD in .env first')\""
   },
   "engines": {
     "node": ">=18"

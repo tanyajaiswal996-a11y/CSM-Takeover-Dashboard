@@ -606,7 +606,6 @@ function render(){
         <p>Switch to see the dashboard as each person would. HR runs the process, Sakshi approves, and CSMs get a limited view.</p>
         ${MODE === 'local' ? '<p>Cases come from PMS resignations in the Sales team. The bidder list is still sample data.</p>' : '<p><span class="demo" style="margin:0">Demo</span> All names and figures are sample data.</p>'}
         <p>${syncLine()}</p>
-        ${window.CTD_AUTH ? '<button class="linkbtn" data-act="sign-out">Sign out</button>' : ''}
         ${(MODE === 'offline' || (MODE === 'live' && CAN_ADMIN && !RO)) ? '<button class="linkbtn" data-act="reset">Reset demo data</button>' : ''}
       </div>
     </aside>
@@ -1084,7 +1083,6 @@ const PMS_PENDING = [
 const ACT = {
   nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); },
   'emp-refresh': () => loadEmployees(true),
-  'sign-out': async () => { await fetch('api/logout', {method:'POST'}).catch(() => {}); location.reload(); },
   'pms-sync': async () => {
     toast('Checking PMS for new resignations…');
     try {
