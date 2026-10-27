@@ -466,7 +466,7 @@ async function localDB(){
           if (r.status === 401) { location.reload(); return; }
           if (r.ok && txt !== last && !localPending) { last = txt; next({docs: JSON.parse(txt).map(x => ({data: () => x}))}); }
         } catch(e) {}
-        setTimeout(tick, 5000);
+        setTimeout(tick, window.CTD_AUTH ? 20000 : 5000); // online: every 20 s to stay within the free storage quota
       };
       tick();
       return () => { stop = true; };
