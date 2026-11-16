@@ -1190,10 +1190,10 @@ async function bidMailModal(refresh){
       <tbody>${d.rows.map(r => `<tr>
         <td><input type="checkbox" id="bmo-i-${r.caseId}" aria-label="Include ${esc(r.name)}" ${r.sentAt || r.outlookSent ? 'disabled' : 'checked'}></td>
         <td><b style="font-weight:500">${esc(r.name)}</b><div class="muted" style="font-size:12px">${r.source
-          ? `From HR’s email of ${fmtD(r.source.receivedAt)}${r.source.corporatesFile ? '' : ' (no corporates file, so 0)'}`
+          ? `From HR’s email of ${fmtD(r.source.receivedAt)}${r.source.corporatesFile ? '' : ' (no corporates file, so 0)'}${r.active != null ? ' · active = corporates with TotalNR above 0' : ''}`
           : '<span style="color:var(--warn)">HR’s leads email not found yet. Type the numbers or check again.</span>'}</div></td>
         <td class="num">${esc(r.doj)}</td>
-        <td>${num('bmo-l-' + r.caseId, r.leads)}</td><td>${num('bmo-c-' + r.caseId, r.corporates)}</td><td>${num('bmo-a-' + r.caseId, '')}</td></tr>`).join('')}</tbody>
+        <td>${num('bmo-l-' + r.caseId, r.leads)}</td><td>${num('bmo-c-' + r.caseId, r.corporates)}</td><td>${num('bmo-a-' + r.caseId, r.active)}</td></tr>`).join('')}</tbody>
     </table></div>
     <div class="grid2">
       <div class="field"><label for="bmo-url">Poll link (Microsoft Forms)</label><input type="url" id="bmo-url" placeholder="https://forms.cloud.microsoft/r/…"></div>
