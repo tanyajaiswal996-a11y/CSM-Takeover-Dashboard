@@ -1162,7 +1162,7 @@ const PMS_PENDING = [
 const BM = {ids:[], data:null, busy:false};
 const bmInputs = () => ({
   caseIds: BM.ids.filter(id => document.getElementById('bmo-i-' + id)?.checked), pollUrl: val('bmo-url'), deadline: val('bmo-date'), extra: val('bmo-extra'), exclude: val('bmo-exclude'),
-  rows: BM.ids.filter(id => document.getElementById('bmo-i-' + id)?.checked).map(id => ({caseId:id, leads: val('bmo-l-' + id), corporates: val('bmo-c-' + id), active: val('bmo-a-' + id)}))
+  rows: BM.ids.filter(id => document.getElementById('bmo-i-' + id)?.checked).map(id => ({caseId:id, leads: val('bmo-l-' + id), corporates: val('bmo-c-' + id), active: val('bmo-a-' + id), futureSC: val('bmo-sc-' + id)}))
 });
 async function bmCall(url, body){
   const r = await fetch(url, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {cache:'no-store'});
@@ -1193,7 +1193,8 @@ async function bidMailModal(refresh){
           ? `From HR’s email of ${fmtD(r.source.receivedAt)}${r.source.corporatesFile ? '' : ' (no corporates file, so 0)'}${r.active != null ? ' · active = corporates with TotalNR above 0' : ''}`
           : '<span style="color:var(--warn)">HR’s leads email not found yet. Type the numbers or check again.</span>'}</div></td>
         <td class="num">${esc(r.doj)}</td>
-        <td>${num('bmo-l-' + r.caseId, r.leads)}</td><td>${num('bmo-c-' + r.caseId, r.corporates)}</td><td>${num('bmo-a-' + r.caseId, r.active)}</td></tr>`).join('')}</tbody>
+        <td>${num('bmo-l-' + r.caseId, r.leads)}</td><td>${num('bmo-c-' + r.caseId, r.corporates)}</td><td>${num('bmo-a-' + r.caseId, r.active)}</td></tr>
+        <tr><td></td><td colspan="5"><div class="field"><label for="bmo-sc-${r.caseId}">Future SC released by ${esc(r.name)} (optional): Assignment ID and True NR, one per line</label><textarea id="bmo-sc-${r.caseId}" rows="2" placeholder="270604, 34500"></textarea></div></td></tr>`).join('')}</tbody>
     </table></div>
     <div class="grid2">
       <div class="field"><label for="bmo-url">Poll link (Microsoft Forms)</label><input type="url" id="bmo-url" placeholder="https://forms.cloud.microsoft/r/…"></div>
