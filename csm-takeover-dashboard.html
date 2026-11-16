@@ -899,7 +899,7 @@ function nextCard(c){
   const g = group(c), all = forAll(c), nb = g.reduce((n, x) => n + x.bids.length, 0), nm = g.reduce((n, x) => n + caseMissing(x), 0);
   const dueTxt = due ? ` Due ${fmtDT(due)}.` : '';
   const A = {
-    0: [g.length > 1 ? `Open bidding for all ${g.length} portfolios` : 'Open bidding', g.length > 1 ? 'One combined bid-open email goes to all CSMs with a single poll covering every portfolio in this batch. Sending it starts one 24-hour window.' : 'Generate the bid-open email with the poll link. Sending it starts the 24-hour window. If another CSM resigns before you send it, add that resignation to this takeover so both run together.', `<button class="btn primary" data-act="gen-bid" ${hr}>Generate ${g.length > 1 ? 'combined ' : ''}bid email</button>`],
+    0: [g.length > 1 ? `Open bidding for all ${g.length} portfolios` : 'Open bidding', g.length > 1 ? 'One combined bid-open email goes to all CSMs with a single poll covering every portfolio in this batch. Sending it starts one 24-hour window.' : (MODE === 'local' ? 'Send the "Opportunity to Bid" email to all CSMs in BCC. Leads come from HR’s email and DOJ from PMS; you add the poll link.' : 'Generate the bid-open email with the poll link. Sending it starts the 24-hour window.') + ' If another CSM resigns before you send it, add that resignation to this takeover so both run together.', `<button class="btn primary" data-act="gen-bid" ${hr}>Generate ${g.length > 1 ? 'combined ' : ''}bid email</button>`],
     1: ['Collect poll responses', `${nb} responses so far${g.length > 1 ? ` across ${g.length} portfolios` : ''}. Window closes ${fmtDT(c.bid?.closeAt)} (${rel(c.bid?.closeAt)}).`, `<button class="btn" data-act="add-bid" ${hr}>Add response</button><button class="btn primary" data-act="close-bid" ${hr}>Close bidding${all}</button>`],
     2: ['Enrich bidder data', 'Add PAPIP status, previous takeovers and their trend for each bidder.', `<button class="btn primary" data-act="start-compile" ${hr}>Start data compilation${all}</button>`],
     3: [g.length > 1 ? 'Compile one approval pack for the batch' : 'Compile the approval pack', nm ? `${nm} data points are still missing${g.length > 1 ? ' across the batch' : ''}. You can still send, and they will show as missing.` : 'All comparison fields are filled.', `<button class="btn" data-act="tab" data-t="compare">Review comparison</button><button class="btn primary" data-act="send-approval" ${hr}>Send ${g.length > 1 ? 'combined ' : ''}pack to Sakshi</button>`],
@@ -1158,7 +1158,97 @@ const PMS_PENDING = [
   {pms:'PMS-RES-88033', name:'Kunal Shah', emp:'EMP-10764', designation:'Associate CSM', port:'Real Estate & Infra', accts:10, target:38, mgr:'Sonal Bhatia', days:0.6},
   {pms:'PMS-RES-88034', name:'Isha Kulkarni', emp:'EMP-11871', designation:'CSM', port:'SMB Central', accts:26, target:42, mgr:'Amit Khurana', days:1}
 ];
+/* "Opportunity to Bid" email, sent from Outlook by the server (local/online mode) */
+const BM = {ids:[], data:null, busy:false};
+const bmInputs = () => ({
+  caseIds: BM.ids.filter(id => document.getElementById('bmo-i-' + id)?.checked), pollUrl: val('bmo-url'), deadline: val('bmo-date'), extra: val('bmo-extra'), exclude: val('bmo-exclude'),
+  rows: BM.ids.filter(id => document.getElementById('bmo-i-' + id)?.checked).map(id => ({caseId:id, leads: val('bmo-l-' + id), corporates: val('bmo-c-' + id), active: val('bmo-a-' + id)}))
+});
+async function bmCall(url, body){
+  const r = await fetch(url, body ? {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)} : {cache:'no-store'});
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) { location.reload(); throw new Error('Signed out'); }
+  if (!r.ok) throw new Error(j.error || 'The server could not do that.');
+  return j;
+}
+const bmMsg = (t, bad) => { const el = document.getElementById('bmo-msg'); if (el) { el.textContent = t; el.style.color = bad ? 'var(--bad, #b42318)' : 'var(--muted)'; } };
+async function bidMailModal(refresh){
+  const c = cur(), g = group(c);
+  BM.ids = g.map(x => x.id);
+  modal(g.length > 1 ? 'Opportunity to Bid email: ' + g.length + ' resignations' : 'Opportunity to Bid email', '<div class="empty">Getting DOJ from PMS and leads from HR’s email…</div>', '<button class="btn" data-act="close-modal">Close</button>',
+    el => { el.querySelector('.modal').style.width = 'min(880px,100%)'; });
+  try { BM.data = await bmCall('api/bidmail?cases=' + BM.ids.map(encodeURIComponent).join(',') + (refresh ? '&refresh=1' : '')); }
+  catch(e) { document.querySelector('#scrim .modal-b').innerHTML = '<div class="banner"><span><b>Could not prepare the email.</b> ' + esc(e.message) + '</span></div>'; return; }
+  const d = BM.data, sent = d.rows.filter(r => r.sentAt), byHand = d.rows.filter(r => r.outlookSent && !r.sentAt);
+  const open = d.rows.filter(r => !r.sentAt && !r.outlookSent);
+  const tomorrow = new Date(Date.parse(d.today) + 864e5).toISOString().slice(0, 10);
+  const num = (id, v) => '<input type="number" min="0" step="1" id="' + id + '" value="' + (v ?? '') + '" style="width:90px" aria-label="count">';
+  const body = (sent.length ? '<div class="banner"><span><b>Already sent</b> for ' + sent.map(r => esc(r.name)).join(', ') + '. Sending again is blocked, so CSMs don’t get it twice.</span></div>' : '')
+    + (byHand.length ? '<div class="banner"><span><b>Already sent from Outlook:</b> ' + byHand.map(r => esc(r.name) + ' (“' + esc(r.outlookSent.subject) + '”, ' + fmtD(r.outlookSent.at) + ')').join('; ') + '. These rows are left out. <button class="linkbtn" data-act="bm-mark">Mark ' + (byHand.length > 1 ? 'them' : 'it') + ' as sent</button> to move the case on.</span></div>' : '') + `
+    <div class="tablewrap"><table>
+      <thead><tr><th title="Include in this email">Send</th><th>CSM Name</th><th>DOJ (PMS)</th><th>Total Leads</th><th>Corporate Leads</th><th>Active Leads (as per AI)</th></tr></thead>
+      <tbody>${d.rows.map(r => `<tr>
+        <td><input type="checkbox" id="bmo-i-${r.caseId}" aria-label="Include ${esc(r.name)}" ${r.sentAt || r.outlookSent ? 'disabled' : 'checked'}></td>
+        <td><b style="font-weight:500">${esc(r.name)}</b><div class="muted" style="font-size:12px">${r.source
+          ? `From HR’s email of ${fmtD(r.source.receivedAt)}${r.source.corporatesFile ? '' : ' (no corporates file, so 0)'}`
+          : '<span style="color:var(--warn)">HR’s leads email not found yet. Type the numbers or check again.</span>'}</div></td>
+        <td class="num">${esc(r.doj)}</td>
+        <td>${num('bmo-l-' + r.caseId, r.leads)}</td><td>${num('bmo-c-' + r.caseId, r.corporates)}</td><td>${num('bmo-a-' + r.caseId, '')}</td></tr>`).join('')}</tbody>
+    </table></div>
+    <div class="grid2">
+      <div class="field"><label for="bmo-url">Poll link (Microsoft Forms)</label><input type="url" id="bmo-url" placeholder="https://forms.cloud.microsoft/r/…"></div>
+      <div class="field"><label for="bmo-date">Submit bids by</label><input type="date" id="bmo-date" value="${tomorrow}" min="${d.today}"></div>
+    </div>
+    <details><summary>BCC: ${d.recipients.length} people (Sales team in PMS, not resigned)</summary>
+      <div style="font-size:12.5px;max-height:160px;overflow:auto;margin-bottom:10px">${d.recipients.map(p => esc(p.name)).join(', ')}</div>
+      <div class="grid2">
+        <div class="field"><label for="bmo-extra">Also BCC (emails, one per line)</label><textarea id="bmo-extra" rows="2">${esc(d.extra.join('\n'))}</textarea></div>
+        <div class="field"><label for="bmo-exclude">Leave out (emails, one per line)</label><textarea id="bmo-exclude" rows="2">${esc(d.exclude.join('\n'))}</textarea></div>
+      </div>
+      <p class="note">These two lists are remembered for the next email.</p>
+    </details>
+    <div class="mail"><div class="row"><span>From</span><span>${esc(d.sender)} (${esc(d.mailbox)})</span></div><div class="row"><span>To</span><span>${esc(d.mailbox)}, everyone else in BCC</span></div></div>
+    <p class="note" id="bmo-msg">Paste the poll link, then click Preview to see the email exactly as it will go out.</p>
+    <iframe id="bmo-prev" title="Email preview" sandbox="" style="display:none;width:100%;height:420px;border:1px solid var(--line);border-radius:6px;background:#fff"></iframe>`;
+  document.querySelector('#scrim .modal-b').innerHTML = body;
+  document.querySelector('#scrim .modal-f').innerHTML = `<button class="btn" data-act="bm-refresh" title="Look for HR’s leads email again">Check HR email again</button><button class="btn" data-act="bm-preview">Preview</button><button class="btn" data-act="bm-test" title="Sends only to ${esc(d.mailbox)}. The case does not change.">Send test to me</button><button class="btn primary" data-act="bm-send" ${open.length ? '' : 'disabled'}>Send to ${d.recipients.length} CSMs</button>`;
+}
+async function bmRun(kind){
+  if (BM.busy) return;
+  const input = bmInputs();
+  if (!input.caseIds.length) { bmMsg('Tick at least one CSM to include.', true); return; }
+  if (kind === 'send' && !confirm(`Send "Opportunity to Bid" from ${BM.data.mailbox} to ${BM.data.recipients.length} people in BCC?\n\nThis cannot be undone.`)) return;
+  BM.busy = true; document.querySelectorAll('#scrim .modal-f .btn').forEach(b => b.disabled = true);
+  bmMsg(kind === 'preview' ? 'Building the preview…' : 'Sending…');
+  try {
+    if (kind === 'preview') {
+      const j = await bmCall('api/bidmail/preview', input);
+      const fr = document.getElementById('bmo-prev'); fr.style.display = 'block';
+      fr.srcdoc = '<div style="font:13px system-ui;padding:8px 12px;border-bottom:1px solid #ddd;margin-bottom:12px"><b>Subject:</b> ' + esc(j.subject) + '<br><b>BCC:</b> ' + j.recipients.length + ' people</div>' + j.html;
+      bmMsg('This is the email as it will be sent.');
+    } else if (kind === 'test') {
+      const j = await bmCall('api/bidmail/send', {...input, test:true});
+      bmMsg('Test sent to ' + j.to + ' only. Check your inbox.');
+    } else {
+      const j = await bmCall('api/bidmail/send', input);
+      closeModal(); toast('Sent to ' + j.sent + ' CSMs. Bidding is open. The case updates in a few seconds.');
+      return;
+    }
+  } catch(e) { bmMsg(e.message, true); }
+  finally { BM.busy = false; document.querySelectorAll('#scrim .modal-f .btn').forEach(b => b.disabled = false); if (BM.data && !BM.data.rows.some(r => !r.sentAt && !r.outlookSent)) document.querySelector('#scrim [data-act="bm-send"]')?.setAttribute('disabled', ''); }
+}
+async function bmMark(){
+  const ids = BM.data.rows.filter(r => r.outlookSent && !r.sentAt).map(r => r.caseId);
+  try { const j = await bmCall('api/bidmail/mark', {caseIds: ids}); toast(`Marked ${j.marked} case${j.marked === 1 ? '' : 's'} as sent. Bidding is shown as open.`); bidMailModal(); }
+  catch(e) { bmMsg(e.message, true); }
+}
+
 const ACT = {
+  'bm-refresh': () => bidMailModal(true),
+  'bm-preview': () => bmRun('preview'),
+  'bm-test': () => bmRun('test'),
+  'bm-send': () => bmRun('send'),
+  'bm-mark': () => bmMark(),
   nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); if (d.v === 'emails' && MAIL.state === 'idle') loadEmails(); },
   'emp-refresh': () => loadEmployees(true),
   'mail-refresh': () => loadEmails(true),
@@ -1246,6 +1336,7 @@ const ACT = {
   },
 
   'gen-bid': () => {
+    if (MODE === 'local') return bidMailModal();
     const c = cur(), g = group(c), url = 'https://forms.office.com/r/' + (inBatch(c) ? c.batchId : c.id).toLowerCase(), close = Date.now() + 24*H;
     const subj = g.length > 1 ? `Takeover bidding open: ${g.length} portfolios (${g.map(x => x.outgoing.name).join(', ')})` : `Takeover bidding open: ${c.portfolio.name} (${c.outgoing.name})`;
     const lines = g.map((x, i) => `${g.length > 1 ? (i + 1) + '. ' : ''}${esc(x.portfolio.name)}: ${esc(x.outgoing.name)}'s portfolio, ${portMeta(x)}, last working day ${x.lwd ? fmtD(x.lwd) : "not set"}`).join('\n');
