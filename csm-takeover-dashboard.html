@@ -483,6 +483,7 @@ async function boot(){
     if (!local) { MODE = 'offline'; Object.assign(S, seed()); render(); return; }
     DB = local; MODE = 'local'; CAN_ADMIN = true;
     loadEmployees();
+    if (S.view === 'emails' || S.tab === 'comms') loadEmails();
     DB.collection('cases').onSnapshot(s => applySnap('cases', s));
     DB.collection('batches').onSnapshot(s => applySnap('batches', s));
     render(); return;
@@ -600,7 +601,8 @@ function render(){
         ${navBtn('approvals','Approval queue', pendingUnits)}
         ${navBtn('comms','Communication log')}
         ${navBtn('activity','Activity log')}
-        ${MODE === 'local' ? navBtn('employees','Employee master', EMP.state === 'ok' ? empRows().length : null) : ''}      </nav>
+        ${MODE === 'local' ? navBtn('employees','Employee master', EMP.state === 'ok' ? empRows().length : null) : ''}
+        ${MODE === 'local' ? navBtn('emails','Email threads', MAIL.state === 'ok' ? MAIL.data.threads.length : null) : ''}      </nav>
       <div class="rolebox">
         <span class="eyebrow">Viewing as</span>
         <select id="role-select" aria-label="Viewing as">${Object.entries(ROLES).map(([k, r]) => `<option value="${k}" ${k === S.role ? 'selected' : ''}>${r.label}</option>`).join('')}</select>
@@ -610,7 +612,7 @@ function render(){
         ${(MODE === 'offline' || (MODE === 'live' && CAN_ADMIN && !RO)) ? '<button class="linkbtn" data-act="reset">Reset demo data</button>' : ''}
       </div>
     </aside>
-    <main>${SYNC_ERR ? `<div class="banner"><span>${esc(SYNC_ERR)}</span></div>` : ''}${RO && MODE === 'live' ? '<div class="banner info"><span>You have view-only access. You can look around, but changes are not saved. Ask the owner for Contributor access to work on cases.</span></div>' : ''}${!ready() ? loadingView() : S.view === 'employees' && MODE === 'local' ? employeesView() : !S.cases.length ? emptyView() : S.view === 'case' && cur() ? caseView(cur()) : S.view === 'approvals' ? approvalsView() : S.view === 'comms' ? commsView() : S.view === 'activity' ? activityView() : casesView()}</main>
+    <main>${SYNC_ERR ? `<div class="banner"><span>${esc(SYNC_ERR)}</span></div>` : ''}${RO && MODE === 'live' ? '<div class="banner info"><span>You have view-only access. You can look around, but changes are not saved. Ask the owner for Contributor access to work on cases.</span></div>' : ''}${!ready() ? loadingView() : S.view === 'employees' && MODE === 'local' ? employeesView() : S.view === 'emails' && MODE === 'local' ? emailsView() : !S.cases.length ? emptyView() : S.view === 'case' && cur() ? caseView(cur()) : S.view === 'approvals' ? approvalsView() : S.view === 'comms' ? commsView() : S.view === 'activity' ? activityView() : casesView()}</main>
   </div>`;
 }
 /* Employee Master: read from the PMS employee API through the local server (credentials stay server-side) */
@@ -668,6 +670,78 @@ function employeesView(){
     </table></div>
   </div>
   <p class="note">Only name, department, designation, manager and resignation dates are shown. Bank, address, phone and other personal fields from PMS are never sent to the browser.</p>`;
+}
+/* Email threads: takeover and opportunity emails collated from Outlook by the server */
+const MAIL = {state:'idle', data:null, q:'', cat:'all', link:'all', err:''};
+async function loadEmails(refresh){
+  MAIL.state = 'loading'; MAIL.err = ''; safeRender();
+  try {
+    const r = await fetch('api/emails' + (refresh ? '?refresh=1' : ''), {cache:'no-store'});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || 'The server could not load emails.');
+    MAIL.data = j; MAIL.state = 'ok';
+    if (refresh) toast(`Updated: ${j.threads.length} email threads`);
+  } catch(e) { MAIL.state = 'error'; MAIL.err = e.message || 'Could not reach the server.'; }
+  safeRender();
+}
+// a thread belongs to a case when its subject names the resigned CSM or their employee code
+function casesForThread(t){
+  const subj = ' ' + t.subject.toLowerCase().replace(/[^a-z0-9]+/g, ' ') + ' ';
+  return S.cases.filter(c => {
+    const name = (c.outgoing.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const code = String(c.outgoing.emp || '').toLowerCase();
+    return (name.length > 3 && subj.includes(' ' + name + ' ')) || (/^[0-9]{3,}$/.test(code) && subj.includes(' ' + code + ' '));
+  });
+}
+const threadsForCase = c => MAIL.state === 'ok' ? MAIL.data.threads.filter(t => casesForThread(t).some(x => x.id === c.id)) : [];
+const catPill = k => `<span class="pill ${k === 'takeover' ? '' : 'info'}">${k === 'takeover' ? 'Takeover' : 'Opportunity'}</span>`;
+function threadRows(list, withCase){
+  return list.map(t => { const cs = withCase ? casesForThread(t) : []; return `<tr>
+    <td class="num nowrap">${fmtD(t.last)}<div class="muted" style="font-size:12px">${t.count > 1 ? 'since ' + fmtS(t.first) : ''}</div></td>
+    <td style="min-width:260px"><b style="font-weight:500">${esc(t.subject)}</b>${t.attachments ? ' <span class="muted" title="Has attachments">📎</span>' : ''}<div class="muted" style="font-size:12px">Last from ${esc((t.lastFrom && (t.lastFrom.name || t.lastFrom.email)) || 'unknown')}</div></td>
+    <td class="nowrap">${t.cats.map(catPill).join(' ')}</td>
+    <td class="num">${t.count}</td>
+    <td style="min-width:200px;font-size:12.5px">${esc(t.people.slice(0, 4).join(', '))}${t.peopleCount > 4 ? ` <span class="muted">+${t.peopleCount - 4} more</span>` : ''}</td>
+    ${withCase ? `<td>${cs.map(c => `<button class="chip" data-act="open-case" data-id="${c.id}" data-t="comms">${esc(c.outgoing.name)}</button>`).join(' ') || '<span class="muted">—</span>'}</td>` : ''}
+    <td class="nowrap"><a href="${esc(t.link)}" target="_blank" rel="noopener" style="color:var(--info)" title="Opens in Outlook on the web. Works for the mailbox owner.">Open in Outlook</a></td>
+  </tr>`; }).join('');
+}
+function emailsView(){
+  const d = MAIL.data;
+  const head = `<div class="topline"><div><h1>Email threads</h1><p class="sub">Takeover and opportunity emails collated from Outlook${d ? ` (${esc(d.mailbox)})` : ''}. Only subjects, people and dates are shown, not message contents.</p></div>
+    <div class="btnrow"><button class="btn" data-act="mail-refresh" ${MAIL.state === 'loading' ? 'disabled' : ''}>Refresh from Outlook</button></div></div>`;
+  if (MAIL.state === 'idle' || (MAIL.state === 'loading' && !d)) return head + `<div class="panel"><div class="empty"><h3 style="color:var(--ink)">Collecting emails from Outlook…</h3><p>The first time can take a minute or two.</p></div></div>`;
+  if (MAIL.state === 'error') return head + `<div class="banner"><span><b>Could not load emails.</b> ${esc(MAIL.err)}</span></div>`;
+  const q = MAIL.q.trim().toLowerCase();
+  const rows = d.threads.filter(t => (MAIL.cat === 'all' || t.cats.includes(MAIL.cat))
+    && (MAIL.link === 'all' || casesForThread(t).length > 0)
+    && (!q || (t.subject + ' ' + t.people.join(' ')).toLowerCase().includes(q)));
+  const count = k => d.threads.filter(t => t.cats.includes(k)).length;
+  return head + `
+  ${!d.historyDone ? `<div class="banner info"><span>Older emails are still being collected (done back to ${fmtD(d.historyFrom)}). Click <b>Refresh from Outlook</b> in a minute to load more.</span></div>` : ''}
+  <div class="panel">
+    <div class="panel-h">
+      <div class="filters" style="flex:1">
+        <input type="search" id="mailq" placeholder="Search subject or people" value="${esc(MAIL.q)}" aria-label="Search email threads">
+        <select id="mailCat" aria-label="Type">
+          <option value="all" ${MAIL.cat === 'all' ? 'selected' : ''}>All types (${d.threads.length})</option>
+          <option value="takeover" ${MAIL.cat === 'takeover' ? 'selected' : ''}>Takeover (${count('takeover')})</option>
+          <option value="opportunity" ${MAIL.cat === 'opportunity' ? 'selected' : ''}>Opportunity (${count('opportunity')})</option>
+        </select>
+        <select id="mailLink" aria-label="Linked case">
+          <option value="all" ${MAIL.link === 'all' ? 'selected' : ''}>All threads</option>
+          <option value="linked" ${MAIL.link === 'linked' ? 'selected' : ''}>Linked to a takeover case</option>
+        </select>
+      </div>
+      <span class="muted num">${rows.length} threads · ${d.messages} emails · updated ${fmtDT(d.syncedAt)}</span>
+    </div>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Latest</th><th>Subject</th><th>Type</th><th>Emails</th><th>People</th><th>Case</th><th></th></tr></thead>
+      <tbody>${threadRows(rows.slice(0, 300), true) || '<tr><td colspan="7" class="empty">No threads match.</td></tr>'}</tbody>
+    </table></div>
+  </div>
+  ${rows.length > 300 ? '<p class="note">Showing the 300 most recent. Search or filter to narrow the list.</p>' : ''}
+  <p class="note">A thread is linked to a case when its subject names the resigned CSM or their employee code. "Open in Outlook" works for the mailbox owner.</p>`;
 }
 function syncLine(){
   if (MODE === 'live') return RO ? '<span style="color:var(--info)">●</span> Shared data · view only' : '<span style="color:var(--ok)">●</span> Live · changes are saved and shared with everyone who opens this link';
@@ -1016,7 +1090,10 @@ function commsTable(list, showCase){
 }
 function commsTab(c){
   return `<div class="panel"><div class="panel-h"><h2>Communication log</h2><button class="btn sm" data-act="log-email" ${isHR() ? '' : 'disabled'}>Log an email</button></div>${commsTable([...c.comms].sort((a, b) => b.at - a.at), false)}</div>
-  <p class="note" style="margin-top:10px">Phase 1 logs emails by hand. Outlook threading and templated sending come in phase 2.${inBatch(c) ? ' Batch emails appear on every case in the batch with the same thread.' : ''}</p>`;
+  <p class="note" style="margin-top:10px">${MODE === 'local' ? 'Emails sent from the dashboard are logged above.' : 'Phase 1 logs emails by hand.'}${inBatch(c) ? ' Batch emails appear on every case in the batch with the same thread.' : ''}</p>
+  ${MODE === 'local' ? `<div class="panel" style="margin-top:16px"><div class="panel-h"><h2>Outlook threads about ${esc(c.outgoing.name)}</h2><span class="muted" style="font-size:12px">Subject names ${esc(c.outgoing.name)} or code ${esc(c.outgoing.emp)}</span></div>
+    ${MAIL.state === 'ok' ? (threadsForCase(c).length ? `<div class="tablewrap"><table><thead><tr><th>Latest</th><th>Subject</th><th>Type</th><th>Emails</th><th>People</th><th></th></tr></thead><tbody>${threadRows(threadsForCase(c), false)}</tbody></table></div>` : '<div class="empty">No takeover or opportunity emails mention this CSM yet.</div>')
+      : MAIL.state === 'error' ? `<div class="empty">Could not load Outlook emails. ${esc(MAIL.err)}</div>` : '<div class="empty">Collecting emails from Outlook…</div>'}</div>` : ''}`;
 }
 function activityTab(c){
   return `<div class="panel"><div class="panel-h"><h2>Activity log</h2><span class="muted" style="font-size:12px">Append-only. Entries cannot be edited or removed.</span></div><div class="panel-b" style="padding-block:4px"><ul class="list">${[...c.log].sort((a, b) => b.at - a.at).map(l => `<li><span class="when">${fmtDT(l.at)}</span><div>${esc(l.text)}<div class="muted" style="font-size:12px">${esc(l.by)}</div></div></li>`).join('')}</ul></div></div>`;
@@ -1082,8 +1159,9 @@ const PMS_PENDING = [
   {pms:'PMS-RES-88034', name:'Isha Kulkarni', emp:'EMP-11871', designation:'CSM', port:'SMB Central', accts:26, target:42, mgr:'Amit Khurana', days:1}
 ];
 const ACT = {
-  nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); },
+  nav: d => { S.view = d.v; S.caseId = null; render(); window.scrollTo(0, 0); if (d.v === 'employees' && EMP.state === 'idle') loadEmployees(); if (d.v === 'emails' && MAIL.state === 'idle') loadEmails(); },
   'emp-refresh': () => loadEmployees(true),
+  'mail-refresh': () => loadEmails(true),
   'pms-sync': async () => {
     toast('Checking PMS for new resignations…');
     try {
@@ -1093,7 +1171,7 @@ const ACT = {
     } catch(e) { toast(e.message || 'Could not reach the server.'); }
   },
   'open-case': d => { S.view = 'case'; S.caseId = d.id; S.tab = d.t || S.tab || 'bids'; S.sort = {key:null, dir:1}; render(); window.scrollTo(0, 0); },
-  tab: d => { S.tab = d.t; render(); },
+  tab: d => { S.tab = d.t; render(); if (d.t === 'comms' && MODE === 'local' && MAIL.state === 'idle') loadEmails(); },
   'clear-f': () => { S.q = ''; S.stageF = 'all'; S.flagF = 'all'; render(); },
   sort: d => { S.sort = S.sort.key === d.k ? {key:d.k, dir:-S.sort.dir} : {key:d.k, dir:1}; render(); },
   'close-modal': closeModal,
@@ -1392,8 +1470,8 @@ document.addEventListener('keydown', e => {
   if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('tr[data-act]')) { e.preventDefault(); ACT['open-case'](e.target.dataset); }
 });
 document.addEventListener('input', e => {
-  if (e.target.id === 'q' || e.target.id === 'empq') {
-    const id = e.target.id; if (id === 'q') S.q = e.target.value; else EMP.q = e.target.value;
+  if (e.target.id === 'q' || e.target.id === 'empq' || e.target.id === 'mailq') {
+    const id = e.target.id; if (id === 'q') S.q = e.target.value; else if (id === 'empq') EMP.q = e.target.value; else MAIL.q = e.target.value;
     const pos = e.target.selectionStart; render(); const q = document.getElementById(id); q.focus(); q.setSelectionRange(pos, pos);
   }
 });
@@ -1403,6 +1481,8 @@ document.addEventListener('change', e => {
   else if (t.id === 'stageF') { S.stageF = t.value; render(); }
   else if (t.id === 'flagF') { S.flagF = t.value; render(); }
   else if (t.id === 'empDept') { EMP.dept = t.value; render(); }
+  else if (t.id === 'mailCat') { MAIL.cat = t.value; render(); }
+  else if (t.id === 'mailLink') { MAIL.link = t.value; render(); }
   else if (t.closest('#decide-form')) dupWarn();
   else if (t.dataset.elig) { const c = cur(), b = c.bids.find(x => x.id === t.dataset.elig); b.eligible = JSON.parse(t.value); log(c, `Eligibility for ${b.name} set to ${b.eligible == null ? 'unreviewed' : b.eligible ? 'eligible' : 'not eligible'}`); commit(); }
   else if (t.dataset.task) { const c = cur(), k = c.tasks.find(x => x.id === t.dataset.task); k.status = t.checked ? 'done' : 'todo'; if (t.checked) k.blocker = ''; log(c, `Task ${t.checked ? 'completed' : 'reopened'}: ${k.title}`); commit(); }
